@@ -1,0 +1,520 @@
+// ===== 調整する数字はここだけ =====
+const CFG = {
+  // 時間の流れ
+  time: {
+    step: 1 / 60,            // 物理を進める刻み（秒）
+    aFireAt: 3.5,            // 敵 A が主人公を撃つ時刻（命中から。資料どおり 3.5 秒）
+    aFireJit: 0.15,          // 撃つ時刻のばらつき
+    endAt: 6.0,              // 命中からこの時刻まで主人公が無事なら CLEAR
+    hitHold: 1.3,            // 主人公が撃たれてから結果を出すまでの間
+    simMax: 9,               // 念のための上限
+  },
+  // 弾の飛行（slow は演出用の「ゲーム内の時間の遅さ」。弾の進みは下の秒数で決める）
+  bullet: {
+    slowScale: 0.08,         // 飛行中の周りの時間（ガラス片・ちり）の速さ
+    nearScale: 0.03,         // 命中直前の周りの時間
+    fly1Sec: 0.95,           // 窓から分岐点まで
+    fly1Extra: 0.55,         // 最初の 1 回だけ、窓の外から始まる分の追加秒
+    fly2Sec: 1.8,            // 分岐点から命中まで
+    nearFrac: 0.65,          // 経路のここから先を「近い」とする
+    nearSpeed: 0.35,         // 近い間の速さ（それまでを 1 として）
+    curve: 0.28,             // 曲がり方
+    startZ: 9.5,             // 最初の 1 回の弾の出発点（窓の外）
+  },
+  // 敵
+  enemy: {
+    hearing: 7,              // 音が届く距離（音の大きさ 1 のとき）
+    aimErr: 0.015,           // ふだんの狙いのずれ（ラジアン）
+    startleDist: 3.2,        // A が驚く距離（砕ける音がこの近さ）
+    panicDelay: 0.3,         // 驚いてから反射で撃つまで
+    panicPitch: 0.75,        // 驚いたときに銃口が上へ跳ねる角度
+    panicJit: 0.2,
+    bTurn: 0.45,             // B が振り向いてから撃つまで
+    bReactMin: 0.25, bReactMax: 0.45,   // バナナの音から駆け出すまで
+    bRun: 4.4, bRunJit: 0.4, // 駆け足の速さ
+    bDuck: 3.0,              // 伏せている時間
+    slipDist: 0.55,          // バナナを踏む距離
+    chaseTimeout: 3.0,
+    misfireDelay: 0.18,      // 転んでから暴発するまで
+    misfireErr: 0.04,        // 暴発の向きのずれ（ボンベのほうを向いている）
+  },
+  // バナナ
+  banana: {
+    landX: 2.9, landZ: -1.3, // 撃たれたバナナが落ちる場所（B の足元）
+    land: 0.3,               // 落下点のばらつき（半径）
+    flight: 1.0,             // 飛んでいる時間
+    flightJit: 0.06,
+  },
+  // 爆発
+  blast: {
+    radius: 7.5,             // 吹き飛ぶ範囲
+    lethal: 3.2,             // 主人公に当たる致死範囲（椅子ごと倒れてかわせるのはこの外）
+    speed: 9,                // 吹き飛ぶ速さ
+    min: 0.35,               // 遠くでも最低これだけの強さ
+    up: 0.55,                // 上向きの成分
+    spin: 3,
+  },
+  // 撃たれたときの衝撃
+  hit: {
+    aPush: 6.5,              // 敵 A を押す速さ
+    aUp: 1.5,
+  },
+  // 音の大きさ（1 で hearing の距離まで届く）
+  loud: { lamp: 1.0, allyDown: 0.9, banana: 0.5, bottle: 0.4 },
+  // 物理
+  phys: { gravity: -9.8, friction: 0.5, restitution: 0.15, iterations: 12, bananaFriction: 0.9 },
+  // カメラ
+  camera: {
+    fov: 62,
+    wide: { x: -2.2, y: 3.2, z: 4.3, lx: 1.2, ly: 1.0, lz: -2.2, fov: 68 },
+    freeze: { x: 1.6, y: 2.5, z: 4.9, lx: -0.9, ly: 1.4, lz: -1.2, fov: 70 },
+    follow: { back: 2.0, up: 0.45, side: 0.7 },
+    near: { back: 0.9, up: 0.2, side: 0.35, fov: 36 },
+    introSec: 2.5,
+  },
+  ui: { hintSec: 2.2 },
+  futures: 4,
+};
+// ===== STAGE 1「単純な未来」の配置（データだけ。three.js は使わない） =====
+// 座標：x は右、y は上、z は手前（窓の側）。部屋は x ±5.5、z -4.8〜4.8、高さ 4.2。
+// 向き yaw：0 で -z（奥）を向く。yawToward(dx,dz) で向きたい方向から求める
+const STAGE1 = {
+  title: '単純な未来',
+  goal: '主人公を助けろ',
+  room: { x: 5.5, zBack: -4.8, zFront: 4.8, h: 4.2 },
+  window: { x: 0, y: 1.75, w: 1.5, h: 1.1 },        // 手前の壁の窓（ここを割って弾が入る）
+  gun: { x: 0, y: 1.75, z: 9.5 },                    // 窓の外の狙撃銃
+  branch: { x: 0, y: 1.75, z: 1.8 },                 // 分岐点（時間が止まる場所）
+  // body: half は箱の半分の大きさ。mass 0 は動かない
+  ents: {
+    hero:   { kind: 'person', pos: [0, 0.7, -4.15],  half: [0.3, 0.7, 0.3],   mass: 60, yaw: Math.PI },
+    A:      { kind: 'person', pos: [0, 0.9, -1.3],   half: [0.28, 0.9, 0.22], mass: 75, yaw: 0 },
+    B:      { kind: 'person', pos: [4.0, 0.9, -2.3], half: [0.28, 0.9, 0.22], mass: 75, yaw: Math.PI * 0.85 },
+    lamp:   { kind: 'lamp',   pos: [0, 3.0, -2.1],   radius: 0.3, mass: 4 },
+    table:  { kind: 'table',  pos: [-2.7, 0.4, 0.9], half: [0.9, 0.4, 0.5],   mass: 0 },
+    banana: { kind: 'banana', pos: [-2.35, 0.87, 0.9], half: [0.14, 0.04, 0.06], mass: 0.3, yaw: 0.5 },
+    bottle: { kind: 'bottle', pos: [-3.1, 0.95, 0.8], half: [0.045, 0.15, 0.045], mass: 0.6 },
+    crate:  { kind: 'crate',  pos: [4.8, 0.4, -3.2], half: [0.4, 0.4, 0.4],   mass: 25 },
+    cyl:    { kind: 'cyl',    pos: [5.0, 0.65, -4.3], half: [0.17, 0.65, 0.17], mass: 30 },
+  },
+  chainTop: 4.2,             // 鎖の上端（天井）
+  // 撃てる対象。aim は弾が当たる点
+  targets: [
+    { id: 'A',      name: '敵A',     aim: { x: 0,     y: 1.3,  z: -1.05 } },
+    { id: 'lamp',   name: 'ランプ',  aim: { x: 0,     y: 3.85, z: -2.1 } },
+    { id: 'banana', name: 'バナナ',  aim: { x: -2.35, y: 0.95, z: 0.9 } },
+    { id: 'bottle', name: 'ワイン瓶', aim: { x: -3.1,  y: 1.08, z: 0.8 } },
+  ],
+};
+
+function yawToward(dx, dz) { return Math.atan2(-dx, -dz); }
+function yawFwd(yaw) { return { x: -Math.sin(yaw), z: -Math.cos(yaw) }; }
+// ===== 物理（cannon.js）。世界の構築・保持・衝突の記録・レイキャスト。three.js は使わない =====
+function makeWorldBodies(S) {
+  const st = S.stage, P = CFG.phys, w = new CANNON.World();
+  w.gravity.set(0, P.gravity, 0);
+  w.broadphase = new CANNON.NaiveBroadphase();
+  w.solver.iterations = P.iterations;
+  w.defaultContactMaterial.friction = P.friction;
+  w.defaultContactMaterial.restitution = P.restitution;
+  const matBan = new CANNON.Material('banana'), matGround = new CANNON.Material('ground');
+  w.addContactMaterial(new CANNON.ContactMaterial(matGround, matBan, { friction: P.bananaFriction, restitution: 0.1 }));
+  S.world = w;
+
+  // 床・天井・壁（吹き飛んだものが部屋の外へ出ないように）
+  const R = st.room;
+  const plane = (px, py, pz, nx, ny, nz, tag, mat) => {
+    const b = new CANNON.Body({ mass: 0, material: mat || null });
+    b.addShape(new CANNON.Plane());
+    b.quaternion.setFromVectors(new CANNON.Vec3(0, 0, 1), new CANNON.Vec3(nx, ny, nz));
+    b.position.set(px, py, pz); b.tag = tag; w.addBody(b);
+  };
+  plane(0, 0, 0, 0, 1, 0, 'floor', matGround);
+  plane(0, R.h, 0, 0, -1, 0, 'ceil');
+  plane(R.x, 0, 0, -1, 0, 0, 'wall'); plane(-R.x, 0, 0, 1, 0, 0, 'wall');
+  plane(0, 0, R.zBack, 0, 0, 1, 'wall'); plane(0, 0, R.zFront, 0, 0, -1, 'wall');
+
+  S.ents = {};
+  for (const id in st.ents) {
+    const d = st.ents[id];
+    const e = { id, def: d, body: null, held: false, hold: { x: d.pos[0], y: d.pos[1], z: d.pos[2] }, yaw: d.yaw || 0, pv: new CANNON.Vec3(), broken: false };
+    const b = new CANNON.Body({ mass: d.mass, material: id === 'banana' ? matBan : null });
+    b.addShape(d.radius ? new CANNON.Sphere(d.radius) : new CANNON.Box(new CANNON.Vec3(d.half[0], d.half[1], d.half[2])));
+    b.position.set(d.pos[0], d.pos[1], d.pos[2]);
+    b.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), e.yaw);
+    b.tag = id;
+    if (d.kind === 'person' || d.kind === 'lamp') e.held = true;   // 立っている人・吊られたランプは、手を離されるまで動かない
+    if (d.kind === 'person') { b.linearDamping = 0.05; b.angularDamping = 0.15; }
+    b.addEventListener('collide', ev => { S.collisions.push({ ent: e, other: ev.body.tag, speed: Math.hypot(e.pv.x, e.pv.y, e.pv.z) }); });
+    e.body = b; w.addBody(b);
+    S.ents[id] = e;
+  }
+}
+
+function holdEnts(S) {
+  for (const id in S.ents) {
+    const e = S.ents[id];
+    if (!e.held || !e.body) continue;
+    const b = e.body;
+    b.position.set(e.hold.x, e.hold.y, e.hold.z);
+    b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0);
+    b.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), e.yaw);
+  }
+}
+
+function physStep(S, dt) {
+  holdEnts(S);
+  for (const id in S.ents) { const e = S.ents[id]; if (e.body) { const v = e.body.velocity; e.pv.set(v.x, v.y, v.z); } }
+  S.world.step(dt);
+}
+
+function releaseEnt(e) { e.held = false; if (e.body) e.body.wakeUp(); }
+
+// ===== レイキャスト（敵の射撃）。箱・球と、部屋の壁・天井・床 =====
+function rayEnt(from, dir, e) {
+  const b = e.body, d = e.def;
+  if (d.radius) {                                           // 球
+    const ox = from.x - b.position.x, oy = from.y - b.position.y, oz = from.z - b.position.z;
+    const bq = ox * dir.x + oy * dir.y + oz * dir.z, c = ox * ox + oy * oy + oz * oz - d.radius * d.radius;
+    const disc = bq * bq - c; if (disc < 0) return null;
+    const t = -bq - Math.sqrt(disc); return t > 0 ? t : null;
+  }
+  const qi = b.quaternion.inverse();                        // 箱：回転を戻して軸に沿った箱として調べる
+  const p = qi.vmult(new CANNON.Vec3(from.x - b.position.x, from.y - b.position.y, from.z - b.position.z));
+  const v = qi.vmult(new CANNON.Vec3(dir.x, dir.y, dir.z));
+  let t0 = 0, t1 = 1e9;
+  const pp = [p.x, p.y, p.z], vv = [v.x, v.y, v.z], hh = d.half;
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(vv[i]) < 1e-9) { if (Math.abs(pp[i]) > hh[i]) return null; continue; }
+    let a = (-hh[i] - pp[i]) / vv[i], c = (hh[i] - pp[i]) / vv[i];
+    if (a > c) { const t = a; a = c; c = t; }
+    t0 = Math.max(t0, a); t1 = Math.min(t1, c);
+    if (t0 > t1) return null;
+  }
+  return t0 > 0 ? t0 : null;
+}
+
+// from から dir（単位ベクトル）へ撃つ。最初に当たったものを返す
+function castRay(S, from, dir, exclude) {
+  let best = { t: 1e9, ent: null, surface: null };
+  for (const id of ['hero', 'A', 'B', 'crate', 'cyl', 'lamp', 'table']) {
+    if (id === exclude) continue;
+    const e = S.ents[id]; if (!e || e.broken) continue;
+    const t = rayEnt(from, dir, e);
+    if (t !== null && t < best.t) best = { t, ent: e, surface: null };
+  }
+  const R = S.stage.room;
+  const planes = [[dir.x > 0 ? R.x : -R.x, 'x', 'wall'], [dir.z > 0 ? R.zFront : R.zBack, 'z', 'wall'],
+                  [dir.y > 0 ? R.h : 0, 'y', dir.y > 0 ? 'ceiling' : 'floor']];
+  for (const [val, ax, name] of planes) {
+    if (Math.abs(dir[ax]) < 1e-9) continue;
+    const t = (val - from[ax]) / dir[ax];
+    if (t > 0 && t < best.t) best = { t, ent: null, surface: name };
+  }
+  best.point = { x: from.x + dir.x * best.t, y: from.y + dir.y * best.t, z: from.z + dir.z * best.t };
+  return best;
+}
+// ===== 連鎖のルール。物理の衝突・音・時刻 → 敵の行動 → 結果。three.js は使わない =====
+// 結果は台本ではなく、敵の弾（レイキャスト）と爆発の判定で決まる。
+function newSim(stage, rng) {
+  const S = { stage, rng: rng || Math.random, t: 0, state: 'ready', events: [], log: [], logKeys: {}, collisions: [],
+    world: null, ents: null, target: null, result: null, doneAt: null, exploded: false, bananaLanded: false,
+    hero: { alive: true, tipped: false, blasted: false, killedBy: null } };
+  makeWorldBodies(S);
+  S.A = newEnemyA(S);
+  S.B = newEnemyB(S);
+  return S;
+}
+
+function rnd(S, a, b) { return a + (b - a) * S.rng(); }
+function pushLog(S, key, text) { if (S.logKeys[key]) return; S.logKeys[key] = 1; S.log.push({ key, text, t: S.t }); }
+function emit(S, ev) { S.events.push(ev); }
+function posOf(e) { const p = e.body.position; return { x: p.x, y: p.y, z: p.z }; }
+function dist3(a, b) { return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z); }
+function distXZ(a, b) { return Math.hypot(a.x - b.x, a.z - b.z); }
+
+// 命中：ここから連鎖が始まる（t = 0）
+function simShoot(S, id) {
+  const tg = S.stage.targets.find(x => x.id === id);
+  S.state = 'running'; S.target = id; S.t = 0;
+  pushLog(S, 'target', tg.name);
+  emit(S, { type: 'impact', target: id, point: tg.aim });
+  const E = S.ents, br = S.stage.branch;
+  if (id === 'A') {
+    const a = E.A; releaseEnt(a);
+    const d = { x: tg.aim.x - br.x, z: tg.aim.z - br.z }, l = Math.hypot(d.x, d.z);
+    a.body.velocity.set(d.x / l * CFG.hit.aPush, CFG.hit.aUp, d.z / l * CFG.hit.aPush);
+    a.body.angularVelocity.set(-3.2, 0, 0);               // 前へのめって倒れる
+    S.A.state = 'down'; S.A.byBullet = true;
+    pushLog(S, 'aDown', '倒れる');
+  } else if (id === 'lamp') {
+    releaseEnt(E.lamp);
+    E.lamp.body.velocity.set(rnd(S, -0.15, 0.15), 0, rnd(S, -0.1, 0.1));
+    pushLog(S, 'lampFall', '落下');
+    emit(S, { type: 'chainSnap', point: tg.aim });
+  } else if (id === 'banana') {
+    const b = E.banana.body, B = CFG.banana, T = B.flight + rnd(S, -B.flightJit, B.flightJit);
+    const ang = rnd(S, 0, Math.PI * 2), r = Math.sqrt(S.rng()) * B.land;
+    const lx = B.landX + Math.cos(ang) * r, lz = B.landZ + Math.sin(ang) * r;
+    b.velocity.set((lx - b.position.x) / T, (0.05 - b.position.y - 0.5 * CFG.phys.gravity * T * T) / T, (lz - b.position.z) / T);
+    b.angularVelocity.set(rnd(S, -6, 6), rnd(S, -6, 6), rnd(S, -6, 6));
+    b.wakeUp();
+    pushLog(S, 'banFly', '飛ぶ');
+    emit(S, { type: 'bananaHit', point: tg.aim });
+  } else if (id === 'bottle') {
+    const e = E.bottle; e.broken = true; S.world.remove(e.body);
+    emit(S, { type: 'shatter', kind: 'bottle', pos: posOf(e) });
+    pushLog(S, 'bottle', '割れる');
+    const heard = emitNoise(S, 'shatter', posOf(e), CFG.loud.bottle);
+    if (!heard) pushLog(S, 'ignored', '誰も気にしない');
+  }
+}
+
+// 音。聞こえた敵が反応する。誰かが反応したら true
+function emitNoise(S, kind, pos, loud) {
+  emit(S, { type: 'noise', kind, pos, loud });
+  const a = enemyAHear(S, kind, pos, loud), b = enemyBHear(S, kind, pos, loud);
+  return a || b;
+}
+
+function simStep(S, dt) {
+  if (S.state !== 'running') return;
+  S.t += dt;
+  enemyAUpdate(S, dt);
+  enemyBUpdate(S, dt);
+  physStep(S, dt);
+  processCollisions(S);
+  checkEnd(S);
+}
+
+function processCollisions(S) {
+  const list = S.collisions; S.collisions = [];
+  for (const c of list) {
+    const e = c.ent;
+    if (e.id === 'lamp' && !e.broken && c.speed > 2) {
+      e.broken = true; S.world.remove(e.body);
+      emit(S, { type: 'shatter', kind: 'lamp', pos: posOf(e) });
+      emitNoise(S, 'crash', posOf(e), CFG.loud.lamp);
+    } else if (e.id === 'banana' && c.other === 'floor' && c.speed > 1.5 && !S.bananaLanded) {
+      S.bananaLanded = true;
+      const p = posOf(e);
+      emit(S, { type: 'thud', pos: p, speed: 3, soft: true });
+      emitNoise(S, 'drop', p, CFG.loud.banana);
+      if (distXZ(p, posOf(S.ents.B)) < 3) pushLog(S, 'nearB', '敵Bの足元へ');
+    } else if (e.id === 'A' && c.other === 'floor' && c.speed > 1.2 && S.A.byBullet && !S.A.noised && e.body.quaternion.vmult(new CANNON.Vec3(0, 1, 0)).y < 0.6) {   // 体が傾いて倒れたとき
+      S.A.noised = true;
+      emit(S, { type: 'thud', pos: posOf(e), speed: 6 });
+      emitNoise(S, 'allyDown', posOf(e), CFG.loud.allyDown);
+    } else if ((e.def.kind === 'person' || e.id === 'crate' || e.id === 'cyl') && c.other === 'floor' && c.speed > 2.5) {
+      if (!e.lastThud || S.t - e.lastThud > 0.3) { e.lastThud = S.t; emit(S, { type: 'thud', pos: posOf(e), speed: c.speed }); }
+    }
+  }
+}
+
+// 銃を撃つ。レイキャストで当たったものが決まる
+function fireGun(S, who, from, dir, kind) {
+  const r = castRay(S, from, dir, who);
+  emit(S, { type: 'gunshot', who, kind, from, to: r.point, hit: r.ent ? r.ent.id : r.surface });
+  if (r.ent && r.ent.id === 'hero' && S.hero.alive) {
+    S.hero.alive = false; S.hero.killedBy = who;
+    releaseEnt(r.ent);
+    r.ent.body.velocity.set(dir.x * 2, 1.2, dir.z * 2);
+    r.ent.body.angularVelocity.set(dir.z * 2, 0, -dir.x * 2);
+    emit(S, { type: 'heroHit', point: r.point });
+  } else if (r.ent && r.ent.id === 'cyl' && !S.exploded) {
+    pushLog(S, 'cylHit', 'ボンベに命中');
+    explode(S, posOf(r.ent));
+  }
+  return r;
+}
+
+function explode(S, pos) {
+  const B = CFG.blast; S.exploded = true;
+  emit(S, { type: 'explode', pos });
+  pushLog(S, 'explode', '爆発');
+  S.ents.cyl.broken = true; S.world.remove(S.ents.cyl.body);
+  let blown = false;
+  for (const id of ['A', 'B', 'crate', 'hero']) {
+    const e = S.ents[id], p = posOf(e), d = dist3(p, pos);
+    if (d > B.radius) continue;
+    const k = Math.max(B.min, 1 - d / B.radius);
+    const hx = p.x - pos.x, hz = p.z - pos.z, hl = Math.hypot(hx, hz) || 1;
+    if (e.held) releaseEnt(e);
+    e.body.velocity.set(hx / hl * B.speed * k, B.speed * B.up * k + 1, hz / hl * B.speed * k);
+    e.body.angularVelocity.set(rnd(S, -B.spin, B.spin), rnd(S, -1, 1), rnd(S, -B.spin, B.spin));
+    if (id === 'A') { S.A.state = 'down'; blown = true; }
+    if (id === 'B') { S.B.state = 'down'; blown = true; }
+    if (id === 'hero') {
+      S.hero.tipped = true; S.hero.blasted = true;
+      if (d < B.lethal && S.hero.alive) { S.hero.alive = false; S.hero.killedBy = 'blast'; emit(S, { type: 'heroHit', point: p }); }
+    }
+  }
+  if (blown) pushLog(S, 'blown', '敵が吹き飛ぶ');
+}
+
+function checkEnd(S) {
+  if (S.doneAt === null) {
+    if (!S.hero.alive) { S.doneAt = S.t + CFG.time.hitHold; finishSim(S, false); }
+    else if (S.t >= CFG.time.endAt) { S.doneAt = S.t + 0.3; finishSim(S, true); }
+  }
+  if (S.doneAt !== null && S.t >= S.doneAt && S.state === 'running') { S.state = 'done'; emit(S, { type: 'done', result: S.result }); }
+  if (S.t > CFG.time.simMax && S.state === 'running') { S.state = 'done'; if (!S.result) finishSim(S, S.hero.alive); }
+}
+
+function finishSim(S, ok) {
+  const id = S.target;
+  if (ok) pushLog(S, 'end', S.hero.blasted ? '主人公 無傷' : '主人公 生存');
+  else pushLog(S, 'end', S.hero.killedBy === 'blast' ? '主人公 爆風を受ける' : '主人公 被弾');
+  let sub;
+  if (ok) sub = id === 'lamp' ? '正攻法' : id === 'banana' ? 'バカな方法' : '偶然の成功';
+  else sub = id === 'bottle' ? '何も変わらなかった' : id === 'A' ? '仲間に気づかれた' : '未来は変わらなかった';
+  S.result = { ok, target: id, sub, lines: S.log.map(l => l.text) };
+}
+// ===== 敵の状態と射撃。three.js は使わない =====
+// A：aim（主人公を狙う）→ 時刻が来たら撃つ。近くで物が砕けると startled（驚いて反射で撃つ・銃口が跳ねる）。倒れたら down
+// B：idle → 音で行動が変わる（allyDown: 振り向いて撃つ / crash: 伏せる / drop: 駆け寄る）。転ぶと slip（暴発）
+function newEnemyA(S) {
+  return { state: 'aim', fireAt: CFG.time.aFireAt + rnd(S, -CFG.time.aFireJit, CFG.time.aFireJit), panicAt: 0, byBullet: false, noised: false };
+}
+function newEnemyB(S) {
+  const e = S.ents.B;
+  return { state: 'idle', reactAt: 0, target: null, speed: CFG.enemy.bRun + rnd(S, -CFG.enemy.bRunJit, CFG.enemy.bRunJit),
+    turnEnd: 0, duckEnd: 0, misfireAt: 0, heading: yawFwd(e.yaw), chaseEnd: 0, yawGoal: e.yaw };
+}
+
+function aimDir(from, to, errYaw, errPitch) {
+  const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z, l = Math.hypot(dx, dy, dz);
+  const yaw = Math.atan2(dx, dz) + errYaw, pitch = Math.asin(dy / l) + errPitch;
+  return { x: Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
+}
+function chestOf(e) { const p = posOf(e); return { x: p.x, y: p.y + 0.2, z: p.z }; }
+function muzzleOf(e) {                                   // 立っている人の銃口（向いている方向の前）
+  const p = posOf(e), f = yawFwd(e.yaw);
+  return { x: p.x + f.x * 0.6, y: p.y + 0.45, z: p.z + f.z * 0.6 };
+}
+
+function enemyAHear(S, kind, pos, loud) {
+  const a = S.A, e = S.ents.A;
+  if (a.state !== 'aim') return false;
+  if (kind === 'crash' && distXZ(posOf(e), pos) < CFG.enemy.startleDist) {
+    a.state = 'startled'; a.panicAt = S.t + CFG.enemy.panicDelay;
+    pushLog(S, 'startle', '敵が驚く');
+    return true;
+  }
+  return false;
+}
+
+function enemyAUpdate(S, dt) {
+  const a = S.A, e = S.ents.A, E = CFG.enemy;
+  if (a.state === 'aim' && S.t >= a.fireAt) {
+    a.state = 'fired';
+    pushLog(S, 'aFire', '敵Aが撃つ');
+    fireGun(S, 'A', muzzleOf(e), aimDir(muzzleOf(e), chestOf(S.ents.hero), rnd(S, -E.aimErr, E.aimErr), rnd(S, -E.aimErr, E.aimErr)), 'aim');
+  } else if (a.state === 'startled' && S.t >= a.panicAt) {
+    a.state = 'frozen';                                   // 驚いて撃ったあとは固まる
+    fireGun(S, 'A', muzzleOf(e), aimDir(muzzleOf(e), chestOf(S.ents.hero), rnd(S, -0.3, 0.3), E.panicPitch + rnd(S, -E.panicJit, E.panicJit)), 'panic');
+    if (S.hero.alive) pushLog(S, 'miss', '銃撃が外れる');
+  }
+}
+
+function enemyBHear(S, kind, pos, loud) {
+  const b = S.B, e = S.ents.B;
+  if (b.state !== 'idle' && b.state !== 'duck') return false;
+  if (distXZ(posOf(e), pos) > loud * CFG.enemy.hearing) return false;
+  const E = CFG.enemy;
+  if (kind === 'allyDown') {
+    const hp = posOf(S.ents.hero), ep = posOf(e);
+    b.state = 'turn'; b.turnEnd = S.t + E.bTurn; b.yawGoal = yawToward(hp.x - ep.x, hp.z - ep.z);
+    pushLog(S, 'bTurn', '物音で敵Bが振り向く');
+    return true;
+  }
+  if (kind === 'crash' && b.state === 'idle') { b.state = 'duck'; b.duckEnd = S.t + E.bDuck; return true; }
+  if (kind === 'drop' && b.state === 'idle') {
+    b.state = 'investigate'; b.reactAt = S.t + rnd(S, E.bReactMin, E.bReactMax); b.chaseEnd = b.reactAt + E.chaseTimeout;
+    return true;
+  }
+  return false;
+}
+
+function enemyBUpdate(S, dt) {
+  const b = S.B, e = S.ents.B, E = CFG.enemy;
+  if (b.state === 'turn') {
+    const diff = Math.atan2(Math.sin(b.yawGoal - e.yaw), Math.cos(b.yawGoal - e.yaw));
+    e.yaw += Math.sign(diff) * Math.min(Math.abs(diff), dt * 9);
+    if (S.t >= b.turnEnd) {
+      b.state = 'shot'; e.yaw = b.yawGoal;
+      pushLog(S, 'bFire', '敵Bが撃つ');
+      fireGun(S, 'B', muzzleOf(e), aimDir(muzzleOf(e), chestOf(S.ents.hero), rnd(S, -E.aimErr, E.aimErr), rnd(S, -E.aimErr, E.aimErr)), 'aim');
+    }
+  } else if (b.state === 'duck') {
+    if (S.t >= b.duckEnd) b.state = 'idle';
+  } else if (b.state === 'investigate') {
+    if (S.t < b.reactAt) return;
+    const bp = posOf(S.ents.banana), p = posOf(e);
+    const dx = bp.x - p.x, dz = bp.z - p.z, l = Math.hypot(dx, dz) || 1;
+    if (l < E.slipDist && bp.y < 0.4) {                    // 踏んだ
+      b.state = 'slip'; b.heading = { x: dx / l, z: dz / l };
+      releaseEnt(e);
+      e.body.velocity.set(-b.heading.x * 2.2, 2.6, -b.heading.z * 2.2);
+      e.body.angularVelocity.set(-3 * b.heading.z, 0, 3 * b.heading.x);   // 後ろへのけぞって倒れる
+      b.misfireAt = S.t + E.misfireDelay;
+      pushLog(S, 'slip', '敵Bが転ぶ');
+      emit(S, { type: 'slip', pos: p });
+      return;
+    }
+    if (S.t > b.chaseEnd) { b.state = 'idle'; return; }
+    const st = Math.min(l, b.speed * dt);
+    e.hold.x += dx / l * st; e.hold.z += dz / l * st;
+    e.yaw = yawToward(dx, dz); b.heading = { x: dx / l, z: dz / l };
+  } else if (b.state === 'slip') {
+    if (S.t >= b.misfireAt) {
+      b.state = 'down';                                    // 暴発は 1 回だけ
+      const cyl = S.ents.cyl;
+      if (cyl.broken) return;
+      const p = posOf(e), from = { x: p.x, y: p.y + 0.4, z: p.z }, to = posOf(cyl);
+      pushLog(S, 'misfire', '銃が暴発');
+      fireGun(S, 'B', from, aimDir(from, to, rnd(S, -E.misfireErr, E.misfireErr), rnd(S, -E.misfireErr, E.misfireErr)), 'misfire');
+    }
+  }
+}
+// ===== 弾の経路と、分岐点での選択（画面上の向き）。three.js は使わない =====
+const BUL = {
+  // 時間の割合 tau(0〜1) → 経路の割合 u(0〜1)。経路の後ろのほう（nearFrac から先）は nearSpeed 倍の速さになる（近づいたらさらにスロー）
+  u(tau) {
+    const B = CFG.bullet, f = B.nearFrac, s = B.nearSpeed, tn = (1 - f) / s, total = f + tn, p = Math.max(0, Math.min(1, tau)) * total;
+    return p <= f ? p : f + (p - f) * s;
+  },
+  // 近いか（寄りのカメラ・風切り音を強める割合 0〜1）
+  near(u) { const f = CFG.bullet.nearFrac; return Math.max(0, Math.min(1, (u - f * 0.8) / (1 - f * 0.8))); },
+  // 分岐点から対象へ曲がって飛ぶ 2 次ベジェ
+  curve(from, to) {
+    const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z, l = Math.hypot(dx, dy, dz);
+    const sx = dz / (Math.hypot(dx, dz) || 1), sz = -dx / (Math.hypot(dx, dz) || 1);   // 進行方向の横
+    const k = CFG.bullet.curve * l;
+    return { p0: from, p1: to, c: { x: (from.x + to.x) / 2 + sx * k, y: (from.y + to.y) / 2 + k * 0.5, z: (from.z + to.z) / 2 + sz * k } };
+  },
+  at(cv, u) {
+    const a = (1 - u) * (1 - u), b = 2 * (1 - u) * u, c = u * u;
+    return { x: a * cv.p0.x + b * cv.c.x + c * cv.p1.x, y: a * cv.p0.y + b * cv.c.y + c * cv.p1.y, z: a * cv.p0.z + b * cv.c.z + c * cv.p1.z };
+  },
+};
+
+// 画面上の向き dir（{x,y}。y は下が正）にある、次の対象を選ぶ。items: [{id, x, y}]（画面の座標）
+function pickDir(items, curId, dir) {
+  const cur = items.find(i => i.id === curId);
+  if (!cur) return curId;
+  let best = null, bestScore = 1e9;
+  for (const it of items) {
+    if (it.id === curId) continue;
+    const vx = it.x - cur.x, vy = it.y - cur.y, l = Math.hypot(vx, vy);
+    if (l < 1) continue;
+    const cos = (vx * dir.x + vy * dir.y) / l;
+    if (cos < 0.35) continue;                              // 向きがだいぶ違うものは選ばない
+    const score = l * (2 - cos);
+    if (score < bestScore) { bestScore = score; best = it.id; }
+  }
+  return best || curId;
+}
+</script>
+</body>
+</html>
