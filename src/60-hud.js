@@ -36,7 +36,7 @@ function hudMarkers(items, sel) {
 }
 
 function hudResult(res, found) {
-  $('resTitle').textContent = res.ok ? 'CLEAR' : 'GAME OVER';
+  $('resTitle').textContent = res.title || (res.ok ? 'CLEAR' : 'GAME OVER'); $('resBadge').classList.toggle('on', !!res.badge);
   $('resTitle').className = res.ok ? 'ok' : 'ng';
   $('resSub').textContent = res.sub;
   const c = $('chain'); c.innerHTML = '';

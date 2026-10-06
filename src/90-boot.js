@@ -20,7 +20,7 @@
   }
 
   const scene = new THREE.Scene();
-  buildRoom(scene); buildProps(scene); buildPeople(scene); initFx(scene);
+  buildRoom(scene); buildProps(scene); buildPeople(scene); initFx(scene); initRain(scene);
   const camera = new THREE.PerspectiveCamera(70, 9 / 16, 0.1, 80);
   fit();
   CAM.cam = camera;
@@ -39,13 +39,14 @@
     el.requestFullscreen().then(() => { if (screen.orientation && screen.orientation.lock) return screen.orientation.lock('portrait'); }).catch(() => {});
   }
 
+  const __nz = new THREE.Vector3();
   const B = CFG.bullet, br = STAGE1.branch;
   const tgt = id => STAGE1.targets.find(t => t.id === id);
 
   // ---------- 局面の切り替え ----------
   function startRound() {                                    // 新しい世界を作って、発射直後からやり直す（0.3 秒もかからない）
     hudHideResult(); hudMarkers(null); hudTint(false); hudIntro(false);
-    sndWhooshStop(); fxClear();
+    sndWhooshStop(); sndRainStop(); fxClear();
     G.S = newSim(STAGE1, Math.random);
     roomReset(); G.acc = 0; G.hero = false;
     startFly1();
@@ -107,22 +108,31 @@
     for (const ev of list) {
       switch (ev.type) {
         case 'impact': fxSparks(ev.point, 18, 0xffd890, 5); FX.shake += 0.3; break;
-        case 'chainSnap': sndMetal(); fxSparks(ev.point, 26, 0xffe0a0, 4); break;
-        case 'bananaHit': fxSparks(ev.point, 10, 0xfff0a0, 3); break;
-        case 'shatter':
-          sndShatter();
-          if (ev.kind === 'lamp') { fxShards(ev.pos, 0xfff0c0, 26, 3); fxSparks(ev.pos, 14, 0xffd070, 4); ROOM.lampLight.intensity = 0.3; ROOM.lampLight.color.setHex(0xff9a50); FX.shake += 0.35; }
-          else { fxShards(ev.pos, 0x2a7a3a, 14, 3); fxShards(ev.pos, 0x7a1020, 10, 2.5); }
-          break;
         case 'gunshot':
           sndGun(); fxMuzzle(ev.from); fxTracer(ev.from, ev.to);
-          if (ev.hit === 'ceiling' || ev.hit === 'wall' || ev.hit === 'floor') fxSparks(ev.to, 12, 0xffd890, 4);
+          if (ev.hit === 'ceiling' || ev.hit === 'wall' || ev.hit === 'floor' || ev.hit === 'sprk') fxSparks(ev.to, 12, 0xffd890, 4);
           FX.shake += 0.25;
           break;
-        case 'explode': sndBoom(); fxExplosion(ev.pos); hudFlash(0.85, 600); break;
         case 'thud': sndThud(ev.speed); break;
-        case 'slip': sndSlip(); hudPop('ツルッ！', 1.0); break;
         case 'heroHit': hudHurt(); FX.shake += 0.5; break;
+        // ① 敵 A
+        case 'gunDrop': sndThud(4); break;
+        case 'shelfBump': sndClang(); FX.shake += 0.2; break;
+        case 'paintCap': sndClang(); fxSparks(ev.pos, 8, 0xffffff, 2); hudPop('ゴンッ！', 0.9); break;
+        // ② 消火器
+        case 'extStart': sndHiss(); break;
+        case 'extHit': sndClang(); fxSparks(ev.pos, 10, 0xffe0a0, 3); break;
+        case 'flashThrow': sndThud(2); break;
+        case 'sprinkler': sndGlass(); fxSparks(ev.pos, 14, 0xdfeeff, 3); sndRainStart(); break;
+        case 'flood': roomWet(); hudPop('水浸し！', 1.1); break;
+        case 'slip': sndSplash(); if (!G.popSlip || performance.now() - G.popSlip > 900) { G.popSlip = performance.now(); hudPop('ツルッ！', 0.7); } break;
+        // ③ アヒル
+        case 'squeak': sndSqueak(); hudPop('ピーッ！', 0.9); break;
+        case 'speech': hudPop('「' + ev.text + '」', 0.9); break;
+        // ④ ガスボンベ
+        case 'capPop': sndPop(); fxCapPop(ev.pos); FX.shake += 0.3; break;
+        case 'rocketStart': sndJet(); break;
+        case 'ricochet': sndClang(); fxSparks(ev.pos, 10, 0xffe0a0, 4); FX.shake += 0.25; break;
         case 'done': showResult(); break;
       }
     }
@@ -235,12 +245,16 @@
         if (G.S.events.length) handleEvents();
       }
       G.ts = 1;
-      camGo(camWide(), dt, 2.2);
+      const F = G.S.flags, X = G.S.ext;                       // 消火器の噴射・ロケットの噴射（毎フレームの粒）
+      if (F.extOn && ROOM.extNozzle) { ROOM.views.ext.obj.updateMatrixWorld(true); ROOM.extNozzle.getWorldPosition(__nz); fxSpray(__nz, { x: -X.dirx, y: 0.05, z: -X.dirz }); if ((G.frameN = (G.frameN || 0) + 1) % 5 === 0) sndHiss(); }
+      if (F.rocketOn && ROOM.cylTail) { ROOM.views.cyl.obj.updateMatrixWorld(true); ROOM.cylTail.getWorldPosition(__nz); const cv = G.S.ents.cyl.body.velocity, cs = Math.hypot(cv.x, cv.y, cv.z) || 1; fxJet(__nz, { x: -cv.x / cs, y: -cv.y / cs, z: -cv.z / cs }); if ((G.frameN = (G.frameN || 0) + 1) % 6 === 0) sndJet(); }
+      camGo(camWide(G.S.target), dt, 2.2);
     }
 
     roomSync(G.S, G.time); peopleSync(G.S, G.time);
     applyGrade(dt);
     fxUpdate(dt * G.ts); fxTracerUpdate(dt);
+    fxRainUpdate(dt * G.ts, G.S.flags.rain && (G.phase === 'sim' || G.phase === 'result'), posOf(G.S.ents.sprk));
     if (G.phase !== 'freeze') camApply(FX.shake);
     renderer.render(scene, camera);
   }

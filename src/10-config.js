@@ -21,52 +21,88 @@ const CFG = {
     curve: 0.28,             // 曲がり方
     startZ: 9.5,             // 最初の 1 回の弾の出発点（窓の外）
   },
-  // 敵
+  // 敵の共通
   enemy: {
     hearing: 7,              // 音が届く距離（音の大きさ 1 のとき）
     aimErr: 0.015,           // ふだんの狙いのずれ（ラジアン）
-    startleDist: 3.2,        // A が驚く距離（砕ける音がこの近さ）
-    panicDelay: 0.3,         // 驚いてから反射で撃つまで
-    panicPitch: 0.75,        // 驚いたときに銃口が上へ跳ねる角度
-    panicJit: 0.2,
-    bTurn: 0.45,             // B が振り向いてから撃つまで
-    bReactMin: 0.25, bReactMax: 0.45,   // バナナの音から駆け出すまで
-    bRun: 4.4, bRunJit: 0.4, // 駆け足の速さ
-    bDuck: 3.0,              // 伏せている時間
-    slipDist: 0.55,          // バナナを踏む距離
-    chaseTimeout: 3.0,
-    misfireDelay: 0.18,      // 転んでから暴発するまで
-    misfireErr: 0.04,        // 暴発の向きのずれ（ボンベのほうを向いている）
+    bRun: 4.4, bRunJit: 0.4, // B の駆け足の速さ
+    turnRate: 4.5,           // 振り向く速さ（rad/s）。光が主人公へ振れるのが見える速さ
   },
-  // バナナ
-  banana: {
-    landX: 1.8, landZ: -1.3, // 撃たれたバナナが落ちる場所（B の足元）
-    land: 0.3,               // 落下点のばらつき（半径）
-    flight: 1.0,             // 飛んでいる時間
-    flightJit: 0.06,
+  // ① 敵 A を撃つ：銃が滑る → B が拾おうとする → 棚が揺れる → ペンキ缶 → B がめちゃくちゃに撃つ
+  gunSlide: {
+    speed: 3.4,              // 銃が床を滑り出す速さ（B の足元で止まるように）
+    aim: { x: 2.2, z: -2.2 },// 銃の行き先（B の足元）
+    aimJit: 0.12,
+    reactDelay: 0.3,         // 音を聞いてから動き出すまで
+    pickDist: 0.45,          // この近さまで来たらかがむ
+    buttAt: 0.35,            // かがんでからお尻が棚に当たるまで
+    paintAt: 0.55,           // かがんでからペンキ缶が飛ぶまで
+    paintFlight: 0.45,       // 缶の飛んでいる時間
+    paintJit: 0.05,          // 缶の落ち先のばらつき（頭の大きさ内）
+    shelfWobble: 0.9,        // 棚が揺れている時間
   },
-  // 爆発
-  blast: {
-    radius: 7.5,             // 吹き飛ぶ範囲
-    lethal: 2.4,             // 主人公に当たる致死範囲（椅子ごと倒れてかわせるのはこの外）
-    speed: 9,                // 吹き飛ぶ速さ
-    min: 0.35,               // 遠くでも最低これだけの強さ
-    up: 0.55,                // 上向きの成分
-    spin: 3,
+  blind: {
+    start: 0.45,             // 缶をかぶってから撃ち始めるまで
+    shots: 7,                // めちゃくちゃに撃つ回数
+    interval: 0.27,
+    yawErr: 0.55,            // 主人公の方を中心にした、向きのばらつき（片側）
+    pitchLo: -0.2, pitchHi: 0.15,
   },
-  // 撃たれたときの衝撃
-  hit: {
-    aPush: 6.5,              // 敵 A を押す速さ
-    aUp: 1.5,
+  // ② 消火器：噴射して滑る → ドラム缶 → B をなぎ倒す → 懐中電灯 → A がまぶしい → スプリンクラー → 水浸し
+  ext: {
+    thrust: 45,              // 噴射の力（N）
+    maxT: 2.6,               // 噴射の最長
+    afterHit: 0.25,          // ドラム缶に当たってから噴射が止まるまで
+  },
+  drum: {
+    homing: 38,              // 転がるドラム缶を B のほうへ寄せる力（N）
+    homingT: 2.2,
+    knockSpeed: 0.7,         // B を倒す最低の速さ
+    push: 3.6, up: 1.6,      // B が飛ばされる強さ
+  },
+  flash: {
+    throwDelay: 0.12,        // B が倒れてから懐中電灯が手を離れるまで
+    flight: 0.55,            // 宙を舞う時間
+    face: { dx: 0.1, y: 1.65, dz: -0.9 },   // A の顔の前（A の位置からの差）
+    dazzleDelay: 0.45,       // 照らされてから A が反射で撃つまで
+    aimErr: 0.03,            // スプリンクラーへの狙いのずれ
+  },
+  wet: {
+    floodDelay: 0.7,         // スプリンクラーが当たってから「水浸し」になるまで
+    riseMin: 0.45, riseMax: 0.9,   // 倒れてから起き上がり始めるまで
+    standT: 0.55,            // 起き上がってからすべるまで
+    friction: 0.08,          // 濡れた床の摩擦
+    push: 2.6, up: 2.0,
+  },
+  // ③ アヒル：鳴く → A が B のほうへ振り向く → B が A を照らす → 撃ち合い
+  duck: {
+    loud: 0.95,
+    aTurn: 0.4, bTurn: 0.35, bTurnJit: 0.08,
+    fireMin: 0.12, fireMax: 0.3,     // 振り向いてから撃つまで
+    aimErr: 0.02,
+    push: 3.6, up: 1.2,              // 撃たれて飛ばされる強さ
+  },
+  // ④ ガスボンベ：爆発しない。栓が飛ぶ → ロケット → 敵は伏せる → 主人公の椅子に直撃
+  rocket: {
+    thrust: 450,             // 噴射の力（N）。速さの向きに押す
+    maxSpeed: 9.5,
+    launch: { x: -0.7, y: 0.28, z: 0.65 },   // 最初の向き（跳ね回ってから主人公へ寄る）
+    steerFrom: 1.2,          // この時刻から主人公のほうへ寄せ始める
+    steerRamp: 0.8,          // 完全に主人公へ向くまで
+    restitution: 0.85,       // 壁・天井・床での跳ね返り
+    dodgeDist: 3.2,          // 敵がこの近さまで来たら伏せる
+    dodgeT: 1.1,
+    hitSpeed: 2,             // 主人公に当たる最低の速さ
   },
   // 音の大きさ（1 で hearing の距離まで届く）
-  loud: { lamp: 1.0, allyDown: 0.9, banana: 0.5, bottle: 0.4 },
+  loud: { clatter: 0.8 },
   // 物理
-  phys: { gravity: -9.8, friction: 0.5, restitution: 0.15, iterations: 12, bananaFriction: 0.9 },
+  phys: { gravity: -9.8, friction: 0.5, restitution: 0.15, iterations: 12 },
   // カメラ
   camera: {
     // fov は横の視野角（縦長の画面でも横に同じだけ入るように。縦は画面の比から求める）
-    wide: { x: -1.3, y: 3.7, z: 4.6, lx: 1.0, ly: 0.7, lz: -2.4, fov: 66 },
+    wide: { x: -1.0, y: 3.7, z: 4.6, lx: 0.5, ly: 0.7, lz: -2.4, fov: 68 },
+    wideBy: { A: { x: -0.4, y: 3.2, z: 4.4, lx: 1.5, ly: 0.9, lz: -2.7, fov: 56 } },     // 対象ごとの引き画（① は B・棚・主人公のあたりを大きく）
     freeze: { x: 0, y: 3.6, z: 4.6, lx: 0, ly: 1.0, lz: -1.2, fov: 62 },
     follow: { back: 2.0, up: 0.45, side: 0.6, fov: 56 },
     near: { back: 0.9, up: 0.2, side: 0.3, fov: 30 },

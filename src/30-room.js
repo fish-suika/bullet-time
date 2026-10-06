@@ -44,7 +44,7 @@ function buildRoom(scene) {
     noiseFill(g, w, h, '#6b4a2a', 40, 600);
     g.fillStyle = 'rgba(0,0,0,.3)'; for (let y = 0; y < h; y += 16) g.fillRect(0, y, w, 1.5);
   }, 1, 1);
-  const floorM = stdMat(0xffffff, 0.9, 0, { map: concrete });
+  const floorM = stdMat(0xffffff, 0.9, 0, { map: concrete }); ROOM.floorM = floorM;
   const wallM = stdMat(0xffffff, 0.95, 0, { map: wallTex });
   const darkM = stdMat(0x1a1b1d, 0.9);
   const woodM = stdMat(0xffffff, 0.8, 0, { map: woodTex });
@@ -115,64 +115,85 @@ function buildRoom(scene) {
   }
 }
 
-// 動く小物・テーブルなど（STAGE1.ents ごとに見た目を作る。位置は剛体から毎フレーム反映）
+// 動く小物・棚・ドラム缶など（STAGE1.ents ごとに見た目を作る。位置は剛体から毎フレーム反映）
 function buildProps(scene) {
   const E = STAGE1.ents;
-  const woodM = stdMat(0x5a3d22, 0.8), darkM = stdMat(0x1a1b1d, 0.9);
+  const darkM = stdMat(0x1a1b1d, 0.9), metalG = stdMat(0x6b7078, 0.5, 0.6);
   const V = ROOM.views;
   const wrap = (id, build) => { const g = new THREE.Group(); build(g); scene.add(g); V[id] = { obj: g }; return g; };
+  const cyl = (g, r0, r1, h, mat, x, y, z, cast) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, 16), mat); m.position.set(x, y, z); m.castShadow = cast !== false; g.add(m); return m; };
 
-  wrap('table', g => {
-    const h = E.table.half;
-    mkBox(g, h[0] * 2, 0.07, h[2] * 2, woodM, 0, h[1] - 0.035, 0);
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) mkBox(g, 0.07, h[1] * 2 - 0.07, 0.07, woodM, sx * (h[0] - 0.08), -0.035, sz * (h[2] - 0.08));
+  wrap('ext', g => {                                       // 床に寝ている消火器（軸は x。ノズルは +x 側）
+    const red = stdMat(0xc02a20, 0.35, 0.3), c = cyl(g, 0.085, 0.085, 0.48, red, -0.02, 0, 0); c.rotation.z = Math.PI / 2;
+    const top = cyl(g, 0.05, 0.085, 0.07, red, -0.28, 0, 0); top.rotation.z = -Math.PI / 2;
+    const band = cyl(g, 0.088, 0.088, 0.1, stdMat(0xeae4d0, 0.6), -0.05, 0, 0); band.rotation.z = Math.PI / 2;
+    const valve = mkBox(g, 0.07, 0.04, 0.05, darkM, -0.2, 0.1, 0);
+    const hose = cyl(g, 0.012, 0.012, 0.18, darkM, -0.3, -0.04, 0); hose.rotation.z = Math.PI / 2 + 0.5;
+    ROOM.extNozzle = new THREE.Object3D(); ROOM.extNozzle.position.set(-0.4, -0.08, 0); g.add(ROOM.extNozzle);
   });
-  wrap('crate', g => {
-    const h = E.crate.half[0], m = stdMat(0x7a5530, 0.8);
-    mkBox(g, h * 2, h * 2, h * 2, m, 0, 0, 0);
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) mkBox(g, 0.06, h * 2 + 0.02, 0.06, darkM, sx * (h - 0.02), 0, sz * (h - 0.02));
-    mkBox(g, h * 2 + 0.02, 0.06, h * 2 + 0.02, darkM, 0, 0, 0);
+  wrap('drum', g => {                                      // 青いドラム缶（物理は球。転がるとごろごろ回る）
+    const blue = stdMat(0x2a5a9a, 0.45, 0.4);
+    cyl(g, 0.3, 0.3, 0.56, blue, 0, 0, 0);
+    for (const y of [-0.17, 0.17]) cyl(g, 0.312, 0.312, 0.035, stdMat(0x1f4472, 0.5, 0.5), 0, y, 0);
+    cyl(g, 0.27, 0.27, 0.02, stdMat(0x1b3f6a, 0.5, 0.4), 0, 0.29, 0);
   });
-  wrap('cyl', g => {
+  wrap('shelf', g => {                                     // B の後ろの金属の棚（4 段・一番上にペンキ缶）
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) mkBox(g, 0.05, 1.7, 0.05, metalG, sx * 0.27, 0, sz * 0.47);
+    for (const y of [-0.82, -0.25, 0.32, 0.85]) mkBox(g, 0.6, 0.04, 1.0, metalG, 0, y, 0);
+    mkBox(g, 0.4, 0.3, 0.4, stdMat(0x7a5530, 0.8), 0, -0.64, -0.1);
+    mkBox(g, 0.35, 0.22, 0.5, stdMat(0x5a5f66, 0.6, 0.3), 0, -0.1, 0.1);
+    mkBox(g, 0.3, 0.2, 0.3, stdMat(0x8a6a3a, 0.8), 0, 0.45, -0.15);
+  });
+  wrap('paint', g => {                                     // ペンキ缶
+    cyl(g, 0.1, 0.1, 0.24, stdMat(0xb8bcc2, 0.35, 0.7), 0, 0, 0);
+    cyl(g, 0.103, 0.103, 0.09, stdMat(0xe08a20, 0.6), 0, 0.01, 0);
+    cyl(g, 0.105, 0.105, 0.02, stdMat(0x8a8e94, 0.4, 0.7), 0, 0.12, 0);
+  });
+  wrap('duck', g => {                                      // ゴムのアヒル（前は -Z）
+    const y = stdMat(0xffd830, 0.5), o = stdMat(0xff8a1a, 0.5);
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 10), y); b.scale.set(1, 0.85, 1.25); b.castShadow = true; g.add(b);
+    const h = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), y); h.position.set(0, 0.095, -0.07); g.add(h);
+    mkBox(g, 0.05, 0.016, 0.045, o, 0, 0.09, -0.125, false);
+    for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 })); e.position.set(sx * 0.03, 0.11, -0.105); g.add(e); }
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), y); tail.position.set(0, 0.04, 0.1); g.add(tail);
+  });
+  wrap('gun', g => {                                       // 敵 A の銃（A が倒れると手から離れて床へ）
+    mkBox(g, 0.05, 0.05, 0.2, darkM, 0, 0.01, 0); mkBox(g, 0.045, 0.11, 0.06, darkM, 0, -0.06, 0.06);
+  });
+  wrap('sprk', g => {                                      // 天井のスプリンクラー
+    const brass = stdMat(0xb8963c, 0.35, 0.8);
+    cyl(g, 0.03, 0.03, 0.3, brass, 0, 0.15, 0);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshStandardMaterial({ color: 0xc02a20, roughness: 0.2 })); bulb.position.y = -0.02; g.add(bulb);
+    cyl(g, 0.13, 0.13, 0.012, brass, 0, -0.09, 0);
+  });
+  wrap('cyl', g => {                                       // ガスボンベ（赤）。ロケットになると軸 +y が機首
     const r = 0.17, hh = E.cyl.half[1], m = stdMat(0xc0281e, 0.4, 0.3);
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r, hh * 2 - 0.2, 16), m); body.castShadow = true; g.add(body);
+    cyl(g, r, r, hh * 2 - 0.2, m, 0, 0, 0);
     const dome = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), m); dome.position.y = hh - 0.1; dome.castShadow = true; g.add(dome);
-    const valve = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.14, 8), stdMat(0xb8a040, 0.4, 0.8)); valve.position.y = hh + 0.05; g.add(valve);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.004, r + 0.004, 0.1, 16), stdMat(0xe8e0d0, 0.6)); band.position.y = 0.15; g.add(band);
-  });
-  wrap('banana', g => {
-    const m = stdMat(0xf2cf2a, 0.55), tip = stdMat(0x4a3a1a, 0.7);
-    // 曲がったバナナ：3 つの棒をつないだ
-    const seg = (x, y, rz, len) => { const s = mkBox(g, len, 0.075, 0.075, m, x, y, 0); s.rotation.z = rz; return s; };
-    seg(-0.1, -0.012, 0.35, 0.12); seg(0, 0.012, 0, 0.14); seg(0.1, -0.012, -0.35, 0.12);
-    mkBox(g, 0.03, 0.04, 0.04, tip, -0.165, -0.04, 0); mkBox(g, 0.035, 0.04, 0.04, tip, 0.165, -0.04, 0);
-    g.scale.setScalar(1.15);
-  });
-  wrap('bottle', g => {
-    const m = stdMat(0x1c4a2a, 0.15, 0.2, { transparent: true, opacity: 0.92 });
-    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.2, 12), m); b.position.y = -0.04; b.castShadow = true; g.add(b);
-    const n = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.03, 0.12, 10), m); n.position.y = 0.12; n.castShadow = true; g.add(n);
-    const l = new THREE.Mesh(new THREE.CylinderGeometry(0.047, 0.047, 0.07, 12), stdMat(0xe8dcc0, 0.8)); l.position.y = -0.05; g.add(l);
+    cyl(g, 0.04, 0.04, 0.14, stdMat(0xb8a040, 0.4, 0.8), 0, hh + 0.05, 0, false);
+    cyl(g, r + 0.004, r + 0.004, 0.1, stdMat(0xe8e0d0, 0.6), 0, -0.3, 0, false);
+    ROOM.cylTail = new THREE.Object3D(); ROOM.cylTail.position.set(0, -hh, 0); g.add(ROOM.cylTail);
   });
   wrap('lamp', g => {
     const shade = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.3, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x2d4a36, roughness: 0.5, metalness: 0.4, side: THREE.DoubleSide }));
     shade.position.y = 0.12; shade.castShadow = false; g.add(shade);
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffe4a8 })); bulb.position.y = -0.04; g.add(bulb);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.12, 8), metalOf()); cap.position.y = 0.32; g.add(cap);
+    cyl(g, 0.04, 0.04, 0.12, stdMat(0x25282b, 0.5, 0.7), 0, 0.32, 0);
     ROOM.lampShade = shade;
   });
-  // 鎖（天井からランプまで。ランプが落ちたら短く残る）
+  // 鎖（天井からランプまで）
   const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1, 6), stdMat(0x333333, 0.4, 0.8));
   scene.add(chain); ROOM.chain = chain;
-  // ランプの光る傘が壁や天井にも明かりを作る（光源は本体の位置に合わせる）
-  function metalOf() { return stdMat(0x25282b, 0.5, 0.7); }
 }
 
 // 場面をはじめの状態に戻す（リトライのとき）
 function roomReset() {
   for (const id in ROOM.views) ROOM.views[id].obj.visible = true;
   ROOM.lampLight.intensity = 1.7; ROOM.lampLight.color.setHex(0xffb464);
-  ROOM.chainCut = false;
+  ROOM.floorM.roughness = 0.9; ROOM.floorM.metalness = 0; ROOM.floorM.color.setHex(0xffffff);
+}
+function roomWet() {                                       // 床がしっとり光る
+  ROOM.floorM.roughness = 0.22; ROOM.floorM.metalness = 0.15; ROOM.floorM.color.setHex(0x8a98a8);
 }
 
 // 剛体の位置・向きを見た目に反映
@@ -180,20 +201,15 @@ function roomSync(S, time) {
   for (const id in ROOM.views) {
     const e = S.ents[id], v = ROOM.views[id];
     if (!e) continue;
-    if (e.broken) { v.obj.visible = false; continue; }
+    if (e.broken || e.captured) { v.obj.visible = false; continue; }
+    if (id === 'gun') v.obj.visible = !e.held;              // 銃は A の手を離れてから見える
     const p = e.body.position, q = e.body.quaternion;
     v.obj.position.set(p.x, p.y, p.z); v.obj.quaternion.set(q.x, q.y, q.z, q.w);
   }
   const lamp = S.ents.lamp, top = STAGE1.chainTop;
-  if (!lamp.broken) {
-    const y = lamp.body.position.y + 0.3, len = lamp.held ? top - y : 0.9;
-    ROOM.chain.visible = true;
-    if (lamp.held) { ROOM.chain.scale.y = len; ROOM.chain.position.set(lamp.body.position.x, y + len / 2, lamp.body.position.z); ROOM.chain.quaternion.set(0, 0, 0, 1); }
-    else { ROOM.chain.scale.y = 0.9; ROOM.chain.position.set(STAGE1.ents.lamp.pos[0], top - 0.45, STAGE1.ents.lamp.pos[2]); }   // 切れて短くなった鎖
-    ROOM.lampLight.position.set(lamp.body.position.x, lamp.body.position.y - 0.05, lamp.body.position.z);
-  } else {
-    ROOM.chain.scale.y = 0.9; ROOM.chain.position.set(STAGE1.ents.lamp.pos[0], top - 0.45, STAGE1.ents.lamp.pos[2]);
-  }
+  const y = lamp.body.position.y + 0.3, len = top - y;
+  ROOM.chain.scale.y = len; ROOM.chain.position.set(lamp.body.position.x, y + len / 2, lamp.body.position.z);
+  ROOM.lampLight.position.set(lamp.body.position.x, lamp.body.position.y - 0.05, lamp.body.position.z);
   // ほこり
   for (const m of ROOM.dust) {
     const u = m.userData;

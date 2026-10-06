@@ -79,3 +79,24 @@ function sndWhooshStop() {
   SND.whoosh = null;
   try { w.g.gain.setTargetAtTime(0, SND.ctx.currentTime, 0.03); w.s.stop(SND.ctx.currentTime + 0.2); } catch (e) {}
 }
+
+// ---- 新しい未来の音 ----
+function sndSqueak() { sndTone(1500, 2300, 0.09, 'square', 0.22, 0); sndTone(2300, 1700, 0.16, 'square', 0.2, 0.09); }     // ゴムのアヒル「ピーッ」
+function sndHiss() { sndNoise(0.12, 0.22, 'highpass', 3000, 6000, 0); }                                                    // 消火器の噴射（毎フレーム足す）
+function sndPop() { sndTone(300, 80, 0.12, 'sine', 0.6, 0); sndNoise(0.18, 0.5, 'bandpass', 1800, 300, 0); }                // 栓が飛ぶ
+function sndClang() { sndTone(420, 260, 0.35, 'triangle', 0.35, 0); sndTone(840, 520, 0.25, 'triangle', 0.18, 0.005); sndNoise(0.1, 0.3, 'bandpass', 2000, 600, 0); }   // ロケットの跳ね返り・ドラム缶
+function sndJet() { sndNoise(0.15, 0.2, 'bandpass', 1500, 2500, 0); }                                                       // ロケットの噴射
+function sndSplash() { sndNoise(0.15, 0.1, 'highpass', 1500, 5000, 0); sndTone(500, 180, 0.12, 'sine', 0.12, 0); }          // すべって転ぶ
+let __rainNode = null;
+function sndRainStart() {                                                                                                   // 雨音（水浸しの間ずっと）
+  if (!SND.ctx || SND.mute || __rainNode) return;
+  const s = SND.ctx.createBufferSource(), f = SND.ctx.createBiquadFilter(), g = SND.ctx.createGain();
+  s.buffer = SND.noise; s.loop = true; f.type = 'highpass'; f.frequency.value = 2500; g.gain.value = 0.0;
+  s.connect(f); f.connect(g); g.connect(SND.out); s.start(); g.gain.setTargetAtTime(0.18, SND.ctx.currentTime, 0.3);
+  __rainNode = { s, g };
+}
+function sndRainStop() {
+  if (!__rainNode) return;
+  const r = __rainNode; __rainNode = null;
+  try { r.g.gain.setTargetAtTime(0, SND.ctx.currentTime, 0.1); r.s.stop(SND.ctx.currentTime + 0.5); } catch (e) {}
+}
