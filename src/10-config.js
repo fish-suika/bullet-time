@@ -112,7 +112,7 @@ const CFG = {
   // 連鎖の見せ場：ステップ（ログ）が来るたびに一瞬スローにして、そのステップの物へカメラが寄る
   beat: { slow: 0.3, dur: 0.7, ease: 0.2, cooldown: 0.5, ffScale: 3,
     // 寄るのは 1 つの未来につき 1 回だけ（その未来の山場のステップ）。ほかのステップは、カメラを動かさず光る輪で示す
-    key: { A: 'paint', ext: 'flashA', duck: 'shootout', cyl: 'heroHit' }, pushDur: 2.0, pushIn: 0.5, pushOut: 0.6, pushDist: 3.2, pushFov: 46, hlDur: 1.6,
+    key: { A: 'paint', ext: 'flashA', duck: 'shootout', cyl: 'heroHit' }, pushDur: 2.0, pushIn: 0.5, pushOut: 0.6, pushDist: 3.2, pushFov: 46, hlDur: 0.8, hlFade: 0.25,
     bounceSlow: 0.25, bounceDur: 0.45, bounceCool: 0.2, bounceMax: 6,   // ロケットの跳ね返り 1 回ごとの小さな見せ場（回数に上限）
     capMin0: 1.3, capBase: 0.7, capPer: 0.08,   // 字幕 1 つが最低限出ている実時間 = max(capMin0, capBase + capPer × 文字数)
     backlogScale: 0.25,                          // 字幕が追いついていない間の、見る速さ（さらに掛ける）

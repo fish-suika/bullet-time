@@ -102,19 +102,17 @@
     sndResult(res.ok);
   }
 
-  // 光る輪：いまの字幕に出てくる物（最大 2 つ）を、字幕が出ている間だけ示す。カメラは動かさない
-  const HL_SIZE = { A: 1.5, B: 1.5, hero: 1.5, shelf: 1.9, drum: 1.0, ext: 0.9, gun: 0.7, flash: 0.7, sprk: 0.9, duck: 0.6, cyl: 1.2 };
+  // 目印：いまの字幕の主役の足元に、細い輪を床に置く。出るのは字幕の最初の 0.8 秒だけ、ふわっと出て消える。カメラは動かさない
+  const HL_R = { A: 0.7, B: 0.7, hero: 0.7, shelf: 0.9, drum: 0.5, ext: 0.45, gun: 0.35, flash: 0.35, sprk: 0.6, duck: 0.35, cyl: 0.5 };
   function hlUpdate() {
-    const hl = G.hl;
-    FX.hl.forEach((m, i) => {
-      const id = hl && !G.push && !G.fast && G.phase === 'sim' && G.time < hl.until ? (i ? hl.b : hl.a) : null;   // 寄っている間は輪を出さない（もう見えているので）
-      if (!id) { m.visible = false; return; }
-      const p = posOf(G.S.ents[id]), age = G.time - hl.t0, tot = hl.until - hl.t0;
-      const fade = Math.min(1, age / 0.15) * (1 - clamp((age - (tot - 0.4)) / 0.4, 0, 1));
-      m.visible = true; m.position.set(p.x, p.y, p.z); m.lookAt(camera.position);
-      m.scale.setScalar((HL_SIZE[id] || 0.9) * (1 + 0.1 * Math.sin(age * 9) + (1 - Math.min(1, age / 0.25)) * 0.5));
-      m.material.opacity = 0.9 * fade;
-    });
+    const hl = G.hl, m = FX.hl[0];
+    const on = hl && !G.push && !G.fast && G.phase === 'sim' && G.time - hl.t0 < CFG.beat.hlDur;
+    if (!on) { m.visible = false; return; }
+    const p = posOf(G.S.ents[hl.a]), age = G.time - hl.t0, T = CFG.beat.hlDur, f = CFG.beat.hlFade;
+    const dist = Math.hypot(p.x - camera.position.x, p.y - camera.position.y, p.z - camera.position.z);
+    const r = Math.min(HL_R[hl.a] || 0.5, dist * 0.085);                                     // 近くでも画面上で大きくならない
+    m.visible = true; m.position.set(p.x, 0.03, p.z); m.scale.setScalar(r);
+    m.material.opacity = 0.45 * Math.min(1, age / f) * (1 - clamp((age - (T - f)) / f, 0, 1));
   }
 
   // ---------- 連鎖の 1 ステップ（ログに足されたとき）：字幕・カメラ・見せ場のスロー ----------
@@ -131,7 +129,7 @@
       const ev = G.capQ.shift();
       G.capCur = ev; G.capShownAt = G.time; G.capMin = Math.max(K.capMin0, K.capBase + K.capPer * ev.text.length);
       hudStep(ev.text, G.capMin + 0.9);
-      if (ev.focus) { G.hl = { a: ev.focus, b: ev.focus2 || null, t0: G.time, until: G.time + Math.min(K.hlDur, G.capMin) }; }          // 光る輪（見る場所）
+      if (ev.focus) { G.hl = { a: ev.focus, t0: G.time }; }          // 光る輪（見る場所）
       if (ev.focus && K.key[G.S.target] === ev.key) G.push = { t0: G.time, focus: ev.focus };                                    // 山場だけ 1 回寄る
       if (!G.beat) { G.beat = { t0: G.time, dur: K.dur, slow: K.slow }; G.beatOk = G.time + K.dur + K.cooldown; }
     }

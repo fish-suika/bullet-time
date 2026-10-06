@@ -213,10 +213,9 @@ function fxBounce(pos) {                                     // 壁・天井・�
   fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xffffff, add: true, op: 0.9, life: 0.12, s0: 0.5, s1: 0.9, spin: 0 });
 }
 
-// ---- 「ここを見て」の光る輪（カメラを動かさずに、いま字幕で言っている物を示す） ----
+
+// ---- 「ここを見て」の目印：物の足元の床に置く細い輪（小さく・薄く・暖色。体にはかぶせない） ----
 function initHighlight(scene) {
-  FX.hl = [0, 1].map(() => {
-    const m = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.5, 48), new THREE.MeshBasicMaterial({ color: 0xffd04a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
-    m.renderOrder = 12; m.visible = false; scene.add(m); return m;
-  });
+  FX.hl = [new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }))];
+  FX.hl[0].rotation.x = -Math.PI / 2; FX.hl[0].visible = false; FX.hl[0].renderOrder = 3; scene.add(FX.hl[0]);
 }
