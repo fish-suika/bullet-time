@@ -51,10 +51,10 @@
     startFly1();
   }
   function startIntro() {
-    G.phase = 'intro'; G.t = 0; G.S = newSim(STAGE1, Math.random); roomReset(); hudIntro(true); hudRetryBtn(false);
+    G.phase = 'intro'; G.t = 0; G.capB = false; G.S = newSim(STAGE1, Math.random); roomReset(); hudIntro(true); hudRetryBtn(false);
   }
   function endIntro() {
-    G.introDone = true; hudIntro(false); startRound();
+    G.introDone = true; hudIntro(false); document.getElementById('cap').classList.remove('on'); startRound();
   }
   function startFly1() {
     const outside = !G.glassBroken;
@@ -188,6 +188,7 @@
     if (G.phase === 'intro') {
       G.t += dt; G.ts = 1;
       camGo(camIntro(Math.min(1, G.t / CFG.camera.introSec)), dt, null);
+      if (!G.capB && G.t >= CFG.camera.introSec * 0.68) { G.capB = true; hudCap('敵B：窓を見張っている', 1.6); }
       if (G.t >= CFG.camera.introSec) endIntro();
     } else if (G.phase === 'fly1') {
       G.t += dt;
@@ -243,6 +244,6 @@
     if (G.phase !== 'freeze') camApply(FX.shake);
     renderer.render(scene, camera);
   }
-  G.dbg = { fire, retry: doRetry, endIntro };
+  G.dbg = { fire, retry: doRetry, endIntro, intro: startIntro };
   requestAnimationFrame(frame);
 })();

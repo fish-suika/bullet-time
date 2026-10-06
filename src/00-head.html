@@ -59,6 +59,8 @@
   #intro.on{opacity:1}
   #intro h2{font-size:calc(var(--u)*9);letter-spacing:.2em}
   #intro p{margin-top:8px;font-size:calc(var(--u)*3.4);letter-spacing:.15em;opacity:.8}
+  #cap{position:absolute;left:50%;top:60%;transform:translateX(-50%);z-index:7;font-size:calc(var(--u)*3.6);letter-spacing:.12em;padding:calc(var(--u)*1) calc(var(--u)*3.4);border-radius:calc(var(--u)*3);background:rgba(8,10,14,.55);text-shadow:0 1px 6px #000;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .5s}
+  #cap.on{opacity:1}
   #pop{position:absolute;left:50%;top:20%;transform:translate(-50%,-50%);z-index:7;font-size:calc(var(--u)*11);font-weight:700;letter-spacing:.1em;
     opacity:0;pointer-events:none;text-shadow:0 2px 16px #000;white-space:nowrap}
   #pop.on{opacity:1}
@@ -111,6 +113,7 @@
   <div id="bar"><button id="retryBtn" class="off">やり直し</button><button id="fireBtn">撃つ</button></div>
   <div id="intro"><h2>状況を見る</h2><p>タップかキーで飛ばす</p></div>
   <div id="pop"></div>
+  <div id="cap"></div>
   <div id="flash"></div>
   <div id="hurt"></div>
   <div id="result">

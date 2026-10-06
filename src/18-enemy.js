@@ -68,7 +68,7 @@ function enemyBUpdate(S, dt) {
   const b = S.B, e = S.ents.B, E = CFG.enemy;
   if (b.state === 'turn') {
     const diff = Math.atan2(Math.sin(b.yawGoal - e.yaw), Math.cos(b.yawGoal - e.yaw));
-    e.yaw += Math.sign(diff) * Math.min(Math.abs(diff), dt * 9);
+    e.yaw += Math.sign(diff) * Math.min(Math.abs(diff), dt * 4.5);
     if (S.t >= b.turnEnd) {
       b.state = 'shot'; e.yaw = b.yawGoal;
       pushLog(S, 'bFire', '敵Bが撃つ');
