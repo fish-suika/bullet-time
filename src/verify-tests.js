@@ -159,6 +159,16 @@ test('① 敵 A は 20 回すべて GAME OVER（大爆発）', () => { eq(COUNT.
 test('② 消火器は 20 回すべて CLEAR', () => { eq(COUNT.ext, 20); });
 test('③ アヒルは 20 回すべて CLEAR', () => { eq(COUNT.duck, 20); });
 test('④ ガスボンベは 20 回すべて GAME OVER', () => { eq(COUNT.cyl, 0); });
+test('④ ロケットは主人公に当たる前に、壁・天井・床で 3 回以上跳ね返る（20 回すべて・主人公への直撃で終わる）', () => {
+  const bs = [], ts = [];
+  for (let i = 0; i < RUNS; i++) {
+    const S = runSim('cyl', 100 + i, 1);
+    eq(S.hero.killedBy, 'cyl', '回 ' + i + ' の死因');
+    bs.push(S.hero.bouncesAtHit); ts.push(S.hero.hitAt);
+  }
+  info('④ 主人公に当たるまでの跳ね返り回数（20 回）最小 ' + Math.min(...bs) + ' 最大 ' + Math.max(...bs) + ' 平均 ' + (bs.reduce((a, b) => a + b, 0) / RUNS).toFixed(1) + '／当たるまでの内部時間 最大 ' + Math.max(...ts).toFixed(1) + ' 秒');
+  eq(Math.min(...bs) >= 3, true, '最小 ' + Math.min(...bs));
+});
 
 // ===== リトライの軽さ =====
 test('シミュレーションの作り直しは速い（20 回の平均）', () => {

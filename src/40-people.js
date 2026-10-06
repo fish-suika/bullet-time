@@ -61,7 +61,18 @@ function buildPeople(scene) {
   makePerson(scene, 'B', { cloth: 0x4a5a3a, pants: 0x2a2a25, hair: 0x4a3a20, mask: true, vest: 0xc4bc9c });
 }
 
-function setArms(P, a, b) { if (P.limbs.armL) { P.limbs.armL.rotation.x = a; P.limbs.armR.rotation.x = b; } }
+function setArms(P, a, b, za, zb) {                    // x：前へ上げる角度／z：横へ開く角度（腕は肩を軸に回る）
+  const L = P.limbs; if (!L.armL) return;
+  L.armL.rotation.set(a, 0, za || 0, 'YXZ'); L.armR.rotation.set(b, 0, zb || 0, 'YXZ');
+}
+// 銃を持つ右腕だけを、狙う相手の胸へ向ける（体の向きに対する横の振れと、上下の角度を、肩から相手への方向で求める）
+function aimRightArm(P, e, tp) {
+  const p = e.body.position, y = e.yaw, hy = STAGE1.ents[e.id].half[1];
+  const sx = p.x + Math.cos(y) * 0.31, sy = p.y - hy + 1.16 + 0.27, sz = p.z - Math.sin(y) * 0.31;    // 右肩の位置
+  const dx = tp.x - sx, dy = tp.y - sy, dz = tp.z - sz;
+  const yaw = Math.atan2(Math.sin(yawToward(dx, dz) - y), Math.cos(yawToward(dx, dz) - y));
+  P.limbs.armR.rotation.set(Math.PI / 2 + Math.atan2(dy, Math.hypot(dx, dz)), yaw, 0, 'YXZ');
+}
 
 // 剛体 → 見た目、状態 → ポーズ
 function peopleSync(S, time) {
@@ -75,19 +86,19 @@ function peopleSync(S, time) {
     }
     const en = id === 'A' ? S.A : S.B, held = e.held;
     const L = P.limbs, st = en.state;
-    let la = 0, ra = 0, legs = 0;
-    const flail = () => { la = 2.4 * Math.sin(time * 7 + (id === 'A' ? 0 : 2)); ra = 2.2 * Math.cos(time * 6) + 1.5; legs = 1.0; };
-    if (id === 'A') {
-      if (st === 'aim' || st === 'fired' || st === 'turn' || st === 'standoff') { la = ra = Math.PI / 2; }
-      else if (st === 'dodge') { crouch = 0.55; la = ra = 2.4; }
-      else flail();
+    let la = 0, ra = 0, za = 0, zb = 0, legs = 0, aimAt = null;
+    // 全状態：A = aim / turn / standoff / fired / dodge / down、B = idle / lit / standoff / fired / dodge / down。
+    // 撃つ姿勢は「銃を持つ右腕だけ」を相手へ向け、左腕は下ろす。倒れた・吹き飛んだ（down）ときは腕も足も力が抜けて、振らない。
+    if (st === 'down') { la = 0.45; ra = -0.35; za = -0.5; zb = 0.6; legs = 0.25; }
+    else if (st === 'dodge') { crouch = 0.55; la = ra = 2.4; }
+    else if (id === 'A') {
+      if (st === 'aim' || st === 'fired' || st === 'turn' || st === 'standoff') aimAt = chestOf(S.ents[S.target === 'duck' ? 'B' : 'hero']);   // 主人公を狙う。アヒルの未来では B のほうへ振り向く
     } else {
       if (st === 'idle') { la = 1.3; ra = 0.25; P.head.rotation.y = Math.sin(time * 0.5) * 0.15; }
-      else if (st === 'lit' || st === 'standoff' || st === 'fired') { la = ra = Math.PI / 2; }
-      else if (st === 'dodge') { crouch = 0.55; la = ra = 2.4; }
-      else flail();
+      else if (st === 'lit' || st === 'standoff' || st === 'fired') aimAt = chestOf(S.ents.A);
     }
-    setArms(P, la, ra);
+    setArms(P, la, ra, za, zb);
+    if (aimAt) aimRightArm(P, e, aimAt);
     if (L.legL) { L.legL.rotation.x = legs; L.legR.rotation.x = -legs; }
     P.g.scale.y = crouch; P.g.position.y = -STAGE1.ents[id].half[1];
     if (id === 'A') P.head.rotation.x = headTilt;

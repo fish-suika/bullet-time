@@ -11,7 +11,7 @@ function newSim(stage, rng) {
     flags: { extOn: false, rocketOn: false },                    // 見た目（粒・ループ音）用
     ext: { on: false, t0: 0, faceHit: false, bowled: false, bowlHit: false, bowlAt: 0, dirx: 0, dirz: 0 },
     discharge: { at: null, fired: false }, ignite: { at: null },
-    rocket: { startAt: null, on: false },
+    rocket: { startAt: null, on: false, bounces: 0, homeAt: null },
     hero: { alive: true, killedBy: null, hitText: null } };
   makeWorldBodies(S);
   S.A = newEnemyA(S);
@@ -169,7 +169,7 @@ function rocketUpdate(S) {
   if (R.startAt === null) return;
   if (!R.on) {
     if (S.t < R.startAt) return;
-    R.on = true; R.t0 = S.t; S.flags.rocketOn = true;
+    R.on = true; R.t0 = S.t; S.flags.rocketOn = true; R.bounces = 0; R.homeAt = null;
     const l = Math.hypot(C.launch.x, C.launch.y, C.launch.z);
     e.body.velocity.set(C.launch.x / l * 3, C.launch.y / l * 3, C.launch.z / l * 3);
     pushLog(S, 'rocket', '爆発せず、ロケットになって跳ね回る');
@@ -178,7 +178,8 @@ function rocketUpdate(S) {
   const b = e.body, v = b.velocity, sp = Math.hypot(v.x, v.y, v.z), t = S.t - R.t0;
   let dx = sp > 0.5 ? v.x / sp : C.launch.x, dy = sp > 0.5 ? v.y / sp : C.launch.y, dz = sp > 0.5 ? v.z / sp : C.launch.z;
   const h = posOf(S.ents.hero), p = posOf(e); h.y += 0.3;     // 狙いは主人公の胸の高さ（椅子ではなく体）
-  const hl = dist3(h, p) || 1, w = clamp((t - C.steerFrom) / C.steerRamp, 0, 1);
+  if (R.homeAt === null && (R.bounces >= C.bounceN || t > C.homeCap)) R.homeAt = t;          // 決めた回数だけ跳ね回ってから、主人公へ向かう
+  const hl = dist3(h, p) || 1, w = R.homeAt === null ? 0 : clamp((t - R.homeAt) / C.steerRamp, 0, 1);
   dx = dx * (1 - w) + (h.x - p.x) / hl * w; dy = dy * (1 - w) + (h.y - p.y) / hl * w; dz = dz * (1 - w) + (h.z - p.z) / hl * w;
   const l = Math.hypot(dx, dy, dz) || 1;
   b.force.x += dx / l * C.thrust; b.force.y += dy / l * C.thrust + b.mass * 9.8 * 0.95; b.force.z += dz / l * C.thrust;   // 向きに噴射しつつ、ほぼ無重力で飛ぶ
@@ -186,7 +187,7 @@ function rocketUpdate(S) {
   if (sp > C.maxSpeed) { v.x *= C.maxSpeed / sp; v.y *= C.maxSpeed / sp; v.z *= C.maxSpeed / sp; }
   if (sp > 0.5) b.quaternion.setFromVectors(new CANNON.Vec3(0, 1, 0), new CANNON.Vec3(v.x / sp, v.y / sp, v.z / sp));   // 機首は進む向き
   b.angularVelocity.set(0, 0, 0);
-  if (sp > C.hitSpeed && dist3(h, p) < 0.62) killHero(S, 'cyl', '主人公に直撃', v);
+  if (R.homeAt !== null && sp > C.hitSpeed && dist3(h, p) < 0.62) killHero(S, 'cyl', '主人公に直撃', v);
   const near = [S.ents.A, S.ents.B].some(x => dist3(posOf(x), p) < C.dodgeDist);
   for (const X of [S.A, S.B]) {                                // ロケットが近づいたら、敵 2 人とも伏せてよける（字幕なし）
     const ex = S.ents[X === S.A ? 'A' : 'B'];
@@ -206,7 +207,7 @@ function endDodge(S, X, ex, backTo) {
 function killHero(S, who, text, dirv) {
   if (!S.hero.alive) return;
   const h = S.ents.hero;
-  S.hero.alive = false; S.hero.killedBy = who; S.hero.hitText = text;
+  S.hero.alive = false; S.hero.killedBy = who; S.hero.hitText = text; S.hero.bouncesAtHit = S.rocket.bounces; S.hero.hitAt = S.t;
   pushLog(S, 'heroHit', text);
   releaseEnt(h);
   h.body.velocity.set((dirv.x || 0) * 0.5, 1.5, (dirv.z || 0) * 0.5);
@@ -219,9 +220,9 @@ function processCollisions(S) {
   for (const c of list) {
     const e = c.ent;
     if (e.id === 'A' && c.other === 'B' && S.ext.faceHit) S.ext.bowlHit = true;                       // 飛んだ A が B にぶつかった
-    else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on && S.t - S.rocket.t0 > 0.25) killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
-    else if (e.id === 'cyl' && S.rocket.on && (c.other === 'wall' || c.other === 'ceil' || c.other === 'floor') && c.speed > 4) {
-      if (!e.lastBounce || S.t - e.lastBounce > 0.15) { e.lastBounce = S.t; emit(S, { type: 'ricochet', pos: posOf(e), speed: c.speed }); }
+    else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on && S.rocket.homeAt !== null && S.t - S.rocket.t0 > 0.25) killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
+    else if (e.id === 'cyl' && S.rocket.on && (c.other === 'wall' || c.other === 'ceil' || c.other === 'floor') && c.speed > 3) {
+      if (!e.lastBounce || S.t - e.lastBounce > 0.15) { e.lastBounce = S.t; S.rocket.bounces++; emit(S, { type: 'ricochet', pos: posOf(e), speed: c.speed }); }
     } else if (e.id === 'duck' && c.other === 'floor' && c.speed > 1 && !S.duckLanded) { S.duckLanded = true; emit(S, { type: 'thud', pos: posOf(e), speed: 3, soft: true }); }
     else if ((e.def.kind === 'person' || e.id === 'drum') && c.other === 'floor' && c.speed > 2.5) {
       if (!e.lastThud || S.t - e.lastThud > 0.3) { e.lastThud = S.t; emit(S, { type: 'thud', pos: posOf(e), speed: c.speed }); }

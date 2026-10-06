@@ -208,9 +208,10 @@ const CFG = {
   rocket: {
     thrust: 450,             // 噴射の力（N）。速さの向きに押す
     maxSpeed: 9.5,
-    launch: { x: -0.7, y: 0.28, z: 0.65 },   // 最初の向き（跳ね回ってから主人公へ寄る）
-    steerFrom: 0.7,          // この時刻から主人公のほうへ寄せ始める
-    steerRamp: 0.6,          // 完全に主人公へ向くまで
+    launch: { x: 0.55, y: 0.4, z: 0.7 },    // 最初の向き（主人公から遠ざかる手前のほうへ。壁・天井・床で跳ね回る）
+    bounceN: 4,              // 壁・天井・床でこの回数跳ね返るまでは主人公へ寄らない（当たりもしない）
+    homeCap: 6,              // 念のため：ロケットになってからこの秒数を過ぎたら、回数に関係なく主人公へ寄せ始める
+    steerRamp: 0.5,          // 寄せ始めてから、完全に主人公へ向くまで
     restitution: 0.85,       // 壁・天井・床での跳ね返り
     dodgeDist: 3.2,          // 敵がこの近さまで来たら伏せる
     dodgeT: 1.1,
@@ -396,7 +397,7 @@ function newSim(stage, rng) {
     flags: { extOn: false, rocketOn: false },                    // 見た目（粒・ループ音）用
     ext: { on: false, t0: 0, faceHit: false, bowled: false, bowlHit: false, bowlAt: 0, dirx: 0, dirz: 0 },
     discharge: { at: null, fired: false }, ignite: { at: null },
-    rocket: { startAt: null, on: false },
+    rocket: { startAt: null, on: false, bounces: 0, homeAt: null },
     hero: { alive: true, killedBy: null, hitText: null } };
   makeWorldBodies(S);
   S.A = newEnemyA(S);
@@ -554,7 +555,7 @@ function rocketUpdate(S) {
   if (R.startAt === null) return;
   if (!R.on) {
     if (S.t < R.startAt) return;
-    R.on = true; R.t0 = S.t; S.flags.rocketOn = true;
+    R.on = true; R.t0 = S.t; S.flags.rocketOn = true; R.bounces = 0; R.homeAt = null;
     const l = Math.hypot(C.launch.x, C.launch.y, C.launch.z);
     e.body.velocity.set(C.launch.x / l * 3, C.launch.y / l * 3, C.launch.z / l * 3);
     pushLog(S, 'rocket', '爆発せず、ロケットになって跳ね回る');
@@ -563,7 +564,8 @@ function rocketUpdate(S) {
   const b = e.body, v = b.velocity, sp = Math.hypot(v.x, v.y, v.z), t = S.t - R.t0;
   let dx = sp > 0.5 ? v.x / sp : C.launch.x, dy = sp > 0.5 ? v.y / sp : C.launch.y, dz = sp > 0.5 ? v.z / sp : C.launch.z;
   const h = posOf(S.ents.hero), p = posOf(e); h.y += 0.3;     // 狙いは主人公の胸の高さ（椅子ではなく体）
-  const hl = dist3(h, p) || 1, w = clamp((t - C.steerFrom) / C.steerRamp, 0, 1);
+  if (R.homeAt === null && (R.bounces >= C.bounceN || t > C.homeCap)) R.homeAt = t;          // 決めた回数だけ跳ね回ってから、主人公へ向かう
+  const hl = dist3(h, p) || 1, w = R.homeAt === null ? 0 : clamp((t - R.homeAt) / C.steerRamp, 0, 1);
   dx = dx * (1 - w) + (h.x - p.x) / hl * w; dy = dy * (1 - w) + (h.y - p.y) / hl * w; dz = dz * (1 - w) + (h.z - p.z) / hl * w;
   const l = Math.hypot(dx, dy, dz) || 1;
   b.force.x += dx / l * C.thrust; b.force.y += dy / l * C.thrust + b.mass * 9.8 * 0.95; b.force.z += dz / l * C.thrust;   // 向きに噴射しつつ、ほぼ無重力で飛ぶ
@@ -571,7 +573,7 @@ function rocketUpdate(S) {
   if (sp > C.maxSpeed) { v.x *= C.maxSpeed / sp; v.y *= C.maxSpeed / sp; v.z *= C.maxSpeed / sp; }
   if (sp > 0.5) b.quaternion.setFromVectors(new CANNON.Vec3(0, 1, 0), new CANNON.Vec3(v.x / sp, v.y / sp, v.z / sp));   // 機首は進む向き
   b.angularVelocity.set(0, 0, 0);
-  if (sp > C.hitSpeed && dist3(h, p) < 0.62) killHero(S, 'cyl', '主人公に直撃', v);
+  if (R.homeAt !== null && sp > C.hitSpeed && dist3(h, p) < 0.62) killHero(S, 'cyl', '主人公に直撃', v);
   const near = [S.ents.A, S.ents.B].some(x => dist3(posOf(x), p) < C.dodgeDist);
   for (const X of [S.A, S.B]) {                                // ロケットが近づいたら、敵 2 人とも伏せてよける（字幕なし）
     const ex = S.ents[X === S.A ? 'A' : 'B'];
@@ -591,7 +593,7 @@ function endDodge(S, X, ex, backTo) {
 function killHero(S, who, text, dirv) {
   if (!S.hero.alive) return;
   const h = S.ents.hero;
-  S.hero.alive = false; S.hero.killedBy = who; S.hero.hitText = text;
+  S.hero.alive = false; S.hero.killedBy = who; S.hero.hitText = text; S.hero.bouncesAtHit = S.rocket.bounces; S.hero.hitAt = S.t;
   pushLog(S, 'heroHit', text);
   releaseEnt(h);
   h.body.velocity.set((dirv.x || 0) * 0.5, 1.5, (dirv.z || 0) * 0.5);
@@ -604,9 +606,9 @@ function processCollisions(S) {
   for (const c of list) {
     const e = c.ent;
     if (e.id === 'A' && c.other === 'B' && S.ext.faceHit) S.ext.bowlHit = true;                       // 飛んだ A が B にぶつかった
-    else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on && S.t - S.rocket.t0 > 0.25) killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
-    else if (e.id === 'cyl' && S.rocket.on && (c.other === 'wall' || c.other === 'ceil' || c.other === 'floor') && c.speed > 4) {
-      if (!e.lastBounce || S.t - e.lastBounce > 0.15) { e.lastBounce = S.t; emit(S, { type: 'ricochet', pos: posOf(e), speed: c.speed }); }
+    else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on && S.rocket.homeAt !== null && S.t - S.rocket.t0 > 0.25) killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
+    else if (e.id === 'cyl' && S.rocket.on && (c.other === 'wall' || c.other === 'ceil' || c.other === 'floor') && c.speed > 3) {
+      if (!e.lastBounce || S.t - e.lastBounce > 0.15) { e.lastBounce = S.t; S.rocket.bounces++; emit(S, { type: 'ricochet', pos: posOf(e), speed: c.speed }); }
     } else if (e.id === 'duck' && c.other === 'floor' && c.speed > 1 && !S.duckLanded) { S.duckLanded = true; emit(S, { type: 'thud', pos: posOf(e), speed: 3, soft: true }); }
     else if ((e.def.kind === 'person' || e.id === 'drum') && c.other === 'floor' && c.speed > 2.5) {
       if (!e.lastThud || S.t - e.lastThud > 0.3) { e.lastThud = S.t; emit(S, { type: 'thud', pos: posOf(e), speed: c.speed }); }
@@ -710,6 +712,7 @@ function enemyAHear(S, kind, pos, loud) {
 function enemyAUpdate(S, dt) {
   const a = S.A, e = S.ents.A, E = CFG.enemy;
   if (!S.hero.alive && a.state === 'aim') return;
+  if (S.rocket.on && a.state === 'aim') return;                 // ④ ロケットが跳ね回っている間、A は撃たない（よけている）
   if (a.state === 'aim' && S.t >= a.fireAt) {
     a.state = 'fired';
     pushLog(S, 'aFire', '敵Aが撃つ');
@@ -1122,7 +1125,18 @@ function buildPeople(scene) {
   makePerson(scene, 'B', { cloth: 0x4a5a3a, pants: 0x2a2a25, hair: 0x4a3a20, mask: true, vest: 0xc4bc9c });
 }
 
-function setArms(P, a, b) { if (P.limbs.armL) { P.limbs.armL.rotation.x = a; P.limbs.armR.rotation.x = b; } }
+function setArms(P, a, b, za, zb) {                    // x：前へ上げる角度／z：横へ開く角度（腕は肩を軸に回る）
+  const L = P.limbs; if (!L.armL) return;
+  L.armL.rotation.set(a, 0, za || 0, 'YXZ'); L.armR.rotation.set(b, 0, zb || 0, 'YXZ');
+}
+// 銃を持つ右腕だけを、狙う相手の胸へ向ける（体の向きに対する横の振れと、上下の角度を、肩から相手への方向で求める）
+function aimRightArm(P, e, tp) {
+  const p = e.body.position, y = e.yaw, hy = STAGE1.ents[e.id].half[1];
+  const sx = p.x + Math.cos(y) * 0.31, sy = p.y - hy + 1.16 + 0.27, sz = p.z - Math.sin(y) * 0.31;    // 右肩の位置
+  const dx = tp.x - sx, dy = tp.y - sy, dz = tp.z - sz;
+  const yaw = Math.atan2(Math.sin(yawToward(dx, dz) - y), Math.cos(yawToward(dx, dz) - y));
+  P.limbs.armR.rotation.set(Math.PI / 2 + Math.atan2(dy, Math.hypot(dx, dz)), yaw, 0, 'YXZ');
+}
 
 // 剛体 → 見た目、状態 → ポーズ
 function peopleSync(S, time) {
@@ -1136,19 +1150,19 @@ function peopleSync(S, time) {
     }
     const en = id === 'A' ? S.A : S.B, held = e.held;
     const L = P.limbs, st = en.state;
-    let la = 0, ra = 0, legs = 0;
-    const flail = () => { la = 2.4 * Math.sin(time * 7 + (id === 'A' ? 0 : 2)); ra = 2.2 * Math.cos(time * 6) + 1.5; legs = 1.0; };
-    if (id === 'A') {
-      if (st === 'aim' || st === 'fired' || st === 'turn' || st === 'standoff') { la = ra = Math.PI / 2; }
-      else if (st === 'dodge') { crouch = 0.55; la = ra = 2.4; }
-      else flail();
+    let la = 0, ra = 0, za = 0, zb = 0, legs = 0, aimAt = null;
+    // 全状態：A = aim / turn / standoff / fired / dodge / down、B = idle / lit / standoff / fired / dodge / down。
+    // 撃つ姿勢は「銃を持つ右腕だけ」を相手へ向け、左腕は下ろす。倒れた・吹き飛んだ（down）ときは腕も足も力が抜けて、振らない。
+    if (st === 'down') { la = 0.45; ra = -0.35; za = -0.5; zb = 0.6; legs = 0.25; }
+    else if (st === 'dodge') { crouch = 0.55; la = ra = 2.4; }
+    else if (id === 'A') {
+      if (st === 'aim' || st === 'fired' || st === 'turn' || st === 'standoff') aimAt = chestOf(S.ents[S.target === 'duck' ? 'B' : 'hero']);   // 主人公を狙う。アヒルの未来では B のほうへ振り向く
     } else {
       if (st === 'idle') { la = 1.3; ra = 0.25; P.head.rotation.y = Math.sin(time * 0.5) * 0.15; }
-      else if (st === 'lit' || st === 'standoff' || st === 'fired') { la = ra = Math.PI / 2; }
-      else if (st === 'dodge') { crouch = 0.55; la = ra = 2.4; }
-      else flail();
+      else if (st === 'lit' || st === 'standoff' || st === 'fired') aimAt = chestOf(S.ents.A);
     }
-    setArms(P, la, ra);
+    setArms(P, la, ra, za, zb);
+    if (aimAt) aimRightArm(P, e, aimAt);
     if (L.legL) { L.legL.rotation.x = legs; L.legR.rotation.x = -legs; }
     P.g.scale.y = crouch; P.g.position.y = -STAGE1.ents[id].half[1];
     if (id === 'A') P.head.rotation.x = headTilt;

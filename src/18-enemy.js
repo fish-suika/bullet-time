@@ -41,6 +41,7 @@ function enemyAHear(S, kind, pos, loud) {
 function enemyAUpdate(S, dt) {
   const a = S.A, e = S.ents.A, E = CFG.enemy;
   if (!S.hero.alive && a.state === 'aim') return;
+  if (S.rocket.on && a.state === 'aim') return;                 // ④ ロケットが跳ね回っている間、A は撃たない（よけている）
   if (a.state === 'aim' && S.t >= a.fireAt) {
     a.state = 'fired';
     pushLog(S, 'aFire', '敵Aが撃つ');
