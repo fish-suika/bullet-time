@@ -53,13 +53,6 @@ function hudResult(res, found) {
 function hudHideResult() { $('result').classList.remove('on'); $('stage').classList.remove('res'); }
 function hudResultOn() { return $('result').classList.contains('on'); }
 
-// 小さな字幕（一度だけ出て、ゆっくり消える）
-let __capTimer = 0;
-function hudCap(text, sec) {
-  const el = $('cap'); el.textContent = text; el.classList.add('on');
-  clearTimeout(__capTimer); __capTimer = setTimeout(() => el.classList.remove('on'), (sec || 1.8) * 1000);
-}
-
 // 連鎖の「いま」の字幕（ログと同じ文）。次のステップが来たら入れ替わり、しばらくしたら消える
 let __stepTimer = 0;
 function hudStep(text) {

@@ -59,15 +59,13 @@
   #intro.on{opacity:1}
   #intro h2{font-size:calc(var(--u)*9);letter-spacing:.2em}
   #intro p{margin-top:8px;font-size:calc(var(--u)*3.4);letter-spacing:.15em;opacity:.8}
-  #cap{position:absolute;left:50%;top:60%;transform:translateX(-50%);z-index:7;font-size:calc(var(--u)*3.6);letter-spacing:.12em;padding:calc(var(--u)*1) calc(var(--u)*3.4);border-radius:calc(var(--u)*3);background:rgba(8,10,14,.55);text-shadow:0 1px 6px #000;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .5s}
-  #cap.on{opacity:1}
   #pop{position:absolute;left:50%;top:20%;transform:translate(-50%,-50%);z-index:7;font-size:calc(var(--u)*11);font-weight:700;letter-spacing:.1em;
     opacity:0;pointer-events:none;text-shadow:0 2px 16px #000;white-space:nowrap}
   #pop.on{opacity:1}
-  #step{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + var(--u)*24);transform:translateX(-50%) translateY(calc(var(--u)*2));z-index:7;width:max-content;max-width:calc(100% - var(--u)*8);text-align:center;padding:calc(var(--u)*1.6) calc(var(--u)*4.4);border-radius:calc(var(--u)*3.4);background:rgba(8,10,14,.62);border:1px solid rgba(255,208,74,.5);color:#fff;font-size:calc(var(--u)*5);font-weight:700;letter-spacing:.06em;line-height:1.35;text-shadow:0 2px 8px #000;opacity:0;pointer-events:none;transition:opacity .35s,transform .35s}
+  #step{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + var(--u)*24);transform:translateX(-50%) translateY(calc(var(--u)*2));z-index:7;width:max-content;max-width:calc(100% - var(--u)*8);text-align:center;padding:calc(var(--u)*1.6) calc(var(--u)*4.4);border-radius:calc(var(--u)*3.4);background:rgba(10,12,16,.86);border:1px solid rgba(255,208,74,.65);box-shadow:0 4px 18px rgba(0,0,0,.6);color:#fff;font-size:calc(var(--u)*5);font-weight:800;letter-spacing:.06em;line-height:1.35;text-wrap:balance;text-shadow:0 1px 3px #000,0 2px 8px #000;opacity:0;pointer-events:none;transition:opacity .35s,transform .35s}
   #step.on{opacity:1;transform:translateX(-50%)}
   #ff{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + var(--u)*19);z-index:6;text-align:center;font-size:calc(var(--u)*2.8);letter-spacing:.12em;opacity:0;pointer-events:none;text-shadow:0 1px 6px #000;transition:opacity .3s}
-  #ff.on{opacity:.7}
+  #ff.on{opacity:.5}
   #flash{position:absolute;inset:0;z-index:4;background:#fff;opacity:0;pointer-events:none}
   #hurt{position:absolute;inset:0;z-index:4;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 30%,rgba(190,20,10,.7) 100%);opacity:0;pointer-events:none}
 
@@ -121,7 +119,6 @@
   <div id="pop"></div>
   <div id="step"></div>
   <div id="ff">タップで早送り</div>
-  <div id="cap"></div>
   <div id="flash"></div>
   <div id="hurt"></div>
   <div id="result">
@@ -251,7 +248,11 @@ const CFG = {
     introSec: 2.5,
   },
   // 連鎖の見せ場：ステップ（ログ）が来るたびに一瞬スローにして、そのステップの物へカメラが寄る
-  beat: { slow: 0.3, dur: 0.7, ease: 0.2, cooldown: 0.5, camHold: 1.1, camDist: 3.4, fov: 50, ffScale: 3 },
+  beat: { slow: 0.3, dur: 0.7, ease: 0.2, cooldown: 0.5, camHold: 1.1, camDist: 3.4, fov: 50, ffScale: 3,
+    bounceSlow: 0.25, bounceDur: 0.45, bounceCool: 0.2, bounceMax: 6,   // ロケットの跳ね返り 1 回ごとの小さな見せ場（回数に上限）
+    rocketScale: 0.8 },                                                  // ロケットの間は、さらに少しゆっくり（見る速さだけ）
+  // ロケットの間のカメラ：手前の壁を消して、部屋の外から全体を見る。ボンベと次にぶつかる所を結んで、ゆっくり追う
+  rocketCam: { x: 0, y: 2.7, z: 9.2, cx: 0, cy: 1.4, cz: -0.3, fov: 50, fovBounce: 40, k: 2.6 },
   ui: { hintSec: 2.2 },
   futures: 4,
 };
@@ -979,6 +980,7 @@ function sndRainStart() {                                                       
   setTimeout(() => sndLoopSet('rain', 0.02, 0.6), 1500);
 }
 function sndRainStop() { sndLoopStop('rain'); }
+function sndBonk() { sndTone(260, 120, 0.2, 'triangle', 0.26, 0); sndTone(620, 380, 0.14, 'triangle', 0.1, 0.004); sndNoise(0.09, 0.14, 'lowpass', 2200, 500, 0); }   // 跳ね返りの「ガン！」（ほどほどの音量）
 // ===== 部屋・光・小物の見た目（薄暗い夜の倉庫） =====
 const ROOM = { lampLight: null, hemi: null, moon: null, glass: null, views: {}, chain: null, lampBase: null, dust: [] };
 
@@ -1098,6 +1100,8 @@ function buildRoom(scene) {
 
 // 動く小物・棚・ドラム缶など（STAGE1.ents ごとに見た目を作る。位置は剛体から毎フレーム反映）
 function buildProps(scene) {
+  const RZ = STAGE1.room.zFront;
+  ROOM.front = scene.children.filter(m => m.isMesh && m.position.z > RZ - 0.06 && m.position.z < RZ + 0.4);   // 手前の壁（窓つき）。ロケットの間だけ消して、外から中を見せる
   const E = STAGE1.ents;
   const darkM = stdMat(0x1a1b1d, 0.9), metalG = stdMat(0x6b7078, 0.5, 0.6);
   const V = ROOM.views;
@@ -1148,7 +1152,7 @@ function buildProps(scene) {
     cyl(g, 0.13, 0.13, 0.012, brass, 0, -0.09, 0);
   });
   wrap('cyl', g => {                                       // ガスボンベ（赤）。ロケットになると軸 +y が機首
-    const r = 0.17, hh = E.cyl.half[1], m = stdMat(0xc0281e, 0.4, 0.3);
+    const r = 0.17, hh = E.cyl.half[1], m = stdMat(0xe63424, 0.4, 0.3, { emissive: 0x7a1208, emissiveIntensity: 0.9 });   // 明るい赤＋うっすら自ら光る（暗い壁の前でも見える）
     cyl(g, r, r, hh * 2 - 0.2, m, 0, 0, 0);
     const dome = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), m); dome.position.y = hh - 0.1; dome.castShadow = true; g.add(dome);
     cyl(g, 0.04, 0.04, 0.14, stdMat(0xb8a040, 0.4, 0.8), 0, hh + 0.05, 0, false);
@@ -1504,11 +1508,6 @@ function fxSpray(pos, dir) {                                 // 消火器の白�
   for (let i = 0; i < 4; i++) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xf2f6ff, op: 0.65, life: 0.45 + Math.random() * 0.35, s0: 0.05, s1: 0.35 + Math.random() * 0.2,
     vx: dir.x * 4 + rr(0.9), vy: dir.y * 4 + rr(0.5) + 0.3, vz: dir.z * 4 + rr(0.9), spin: 0 });
 }
-function fxJet(pos, back) {                                  // ロケットの噴射（機体の後ろへ）
-  for (let i = 0; i < 4; i++) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: i % 2 ? 0xdff2ff : 0xffe2a0, add: true, op: 0.85, life: 0.25 + Math.random() * 0.25, s0: 0.14, s1: 0.04,
-    vx: back.x * 5 + rr(0.8), vy: back.y * 5 + rr(0.8), vz: back.z * 5 + rr(0.8), spin: 0 });
-  fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xcfd6dc, op: 0.4, life: 0.8, s0: 0.1, s1: 0.5, vx: back.x * 1.5 + rr(0.3), vy: back.y * 1.5 + 0.3, vz: back.z * 1.5 + rr(0.3), spin: 0 });
-}
 function fxCapPop(pos) {                                     // 栓が飛ぶ
   fxSparks(pos, 14, 0xffe8b0, 5);
   for (let i = 0; i < 6; i++) fxSpawn({ x: pos.x, y: pos.y + 1.2, z: pos.z, color: 0xe8f0ff, op: 0.7, life: 0.7, s0: 0.1, s1: 0.5, vx: rr(1.5), vy: 1 + Math.random(), vz: rr(1.5), spin: 0 });
@@ -1518,7 +1517,7 @@ function fxCapPop(pos) {                                     // 栓が飛ぶ
 function initRain(scene) {
   const N = 520, g = new THREE.BufferGeometry(), pos = new Float32Array(N * 3);
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xbfdcff, size: 0.055, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9fc4ee, size: 2.6, sizeAttenuation: false, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
   pts.frustumCulled = false; pts.visible = false; scene.add(pts);
   FX.rain = { pts, N, pos, r: new Float32Array(N), a: new Float32Array(N), on: false };
   for (let i = 0; i < N; i++) { FX.rain.r[i] = Math.sqrt(Math.random()) * 3.6; FX.rain.a[i] = Math.random() * 6.28; pos[i * 3 + 1] = Math.random() * 4; }
@@ -1532,6 +1531,16 @@ function fxRainUpdate(dt, on, c) {                           // c: スプリン�
     R.pos[i * 3] = c.x + Math.cos(R.a[i]) * R.r[i]; R.pos[i * 3 + 1] = y; R.pos[i * 3 + 2] = c.z + Math.sin(R.a[i]) * R.r[i];
   }
   R.pts.geometry.attributes.position.needsUpdate = true;
+}
+function fxJet(pos, back) {                                  // ロケットの噴射：細く・薄く（機体を隠さない）
+  for (let i = 0; i < 2; i++) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: i % 2 ? 0xdff2ff : 0xffe2a0, add: true, op: 0.55, life: 0.22 + Math.random() * 0.15, s0: 0.08, s1: 0.025,
+    vx: back.x * 4 + rr(0.5), vy: back.y * 4 + rr(0.5), vz: back.z * 4 + rr(0.5), spin: 0 });
+  if (Math.random() < 0.35) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xcfd6dc, op: 0.18, life: 0.6, s0: 0.06, s1: 0.28, vx: back.x * 1.2 + rr(0.3), vy: back.y * 1.2 + 0.2, vz: back.z * 1.2 + rr(0.3), spin: 0 });
+}
+function fxBounce(pos) {                                     // 壁・天井・床にぶつかった瞬間：明るい火花と砂ぼこり
+  fxSparks(pos, 26, 0xfff0c0, 7);
+  for (let i = 0; i < 8; i++) fxSpawn({ x: pos.x + rr(0.15), y: pos.y + rr(0.15), z: pos.z + rr(0.15), color: 0xb8aea0, op: 0.45, life: 0.7, s0: 0.1, s1: 0.55, vx: rr(1.4), vy: rr(1.0) + 0.3, vz: rr(1.4), spin: 0 });
+  fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xffffff, add: true, op: 0.9, life: 0.12, s0: 0.5, s1: 0.9, spin: 0 });
 }
 // ===== カメラ：見回し・弾への追従・寄り・引き画（縦長の画面用） =====
 // fov は「横の視野角」で持つ。縦の視野角は画面の縦横比から求める（縦長でも横に同じだけ入る）
@@ -1675,13 +1684,6 @@ function hudResult(res, found) {
 function hudHideResult() { $('result').classList.remove('on'); $('stage').classList.remove('res'); }
 function hudResultOn() { return $('result').classList.contains('on'); }
 
-// 小さな字幕（一度だけ出て、ゆっくり消える）
-let __capTimer = 0;
-function hudCap(text, sec) {
-  const el = $('cap'); el.textContent = text; el.classList.add('on');
-  clearTimeout(__capTimer); __capTimer = setTimeout(() => el.classList.remove('on'), (sec || 1.8) * 1000);
-}
-
 // 連鎖の「いま」の字幕（ログと同じ文）。次のステップが来たら入れ替わり、しばらくしたら消える
 let __stepTimer = 0;
 function hudStep(text) {
@@ -1740,16 +1742,16 @@ function hudStep(text) {
   // ---------- 局面の切り替え ----------
   function startRound() {                                    // 新しい世界を作って、発射直後からやり直す（0.3 秒もかからない）
     hudHideResult(); hudMarkers(null); hudTint(false); hudIntro(false);
-    sndWhooshStop(); sndLoopsStop(); fxClear(); G.fast = false; G.beat = null; G.focus = null; G.focusUntil = 0; hudStep(null); $('ff').classList.remove('on');
+    sndWhooshStop(); sndLoopsStop(); fxClear(); G.fast = false; G.beat = null; G.focus = null; G.focusUntil = 0; G.bounceN = 0; G.beatOk = 0; hudStep(null); $('ff').classList.remove('on');
     G.S = newSim(STAGE1, Math.random);
     roomReset(); G.acc = 0; G.hero = false;
     startFly1();
   }
   function startIntro() {
-    G.phase = 'intro'; G.t = 0; G.capB = false; G.S = newSim(STAGE1, Math.random); roomReset(); hudIntro(true); hudRetryBtn(false);
+    G.phase = 'intro'; G.t = 0; G.S = newSim(STAGE1, Math.random); roomReset(); hudIntro(true); hudRetryBtn(false);
   }
   function endIntro() {
-    G.introDone = true; hudIntro(false); document.getElementById('cap').classList.remove('on'); startRound();
+    G.introDone = true; hudIntro(false); startRound();
   }
   function startFly1() {
     const outside = !G.glassBroken;
@@ -1779,7 +1781,7 @@ function hudStep(text) {
     sndConfirm(); sndWhooshStart();
   }
   function impact() {
-    G.phase = 'sim'; G.ts = 1; G.t = 0; G.acc = 0;
+    G.phase = 'sim'; G.ts = 1; G.t = 0; G.acc = 0; G.simT0 = G.time;
     fxBullet(br, G.camDir, false); FX.trailPts.length = 0; fxRings(br, 0, camera.position, false);
     sndWhooshStop(); sndImpact();
     hudFlash(0.55, 350);
@@ -1802,7 +1804,14 @@ function hudStep(text) {
     hudStep(ev.text);
     if (G.fast) return;
     if (ev.focus) { G.focus = ev.focus; G.focusUntil = G.time + K.camHold; }
-    if (!G.beat && G.time >= (G.beatOk || 0)) { G.beat = { t0: G.time }; G.beatOk = G.time + K.dur + K.cooldown; }     // 続けて来たステップは、スローを重ねず字幕とカメラだけ
+    if (!G.beat && G.time >= (G.beatOk || 0)) { G.beat = { t0: G.time, dur: K.dur, slow: K.slow }; G.beatOk = G.time + K.dur + K.cooldown; }     // 続けて来たステップは、スローを重ねず字幕とカメラだけ
+  }
+
+  // ロケットの跳ね返り 1 回ごとの小さな見せ場（ログのステップではないので、ここで別に作る。回数に上限、近すぎるものは束ねる）
+  function bounceBeat() {
+    const K = CFG.beat;
+    if (G.fast || (G.bounceN || 0) >= K.bounceMax) return;
+    if (!G.beat && G.time >= (G.beatOk || 0)) { G.beat = { t0: G.time, dur: K.bounceDur, slow: K.bounceSlow, bounce: true }; G.beatOk = G.time + K.bounceDur + K.bounceCool; G.bounceN = (G.bounceN || 0) + 1; }
   }
 
   // ---------- 連鎖の出来事 → 見た目と音 ----------
@@ -1827,7 +1836,7 @@ function hudStep(text) {
         case 'extHit': sndClang(); fxSparks(ev.pos, 10, 0xffe0a0, 3); break;
         case 'flashThrow': sndThud(2); break;
         case 'sprinkler': sndGlass(); fxSparks(ev.pos, 14, 0xdfeeff, 3); sndRainStart(); break;
-        case 'flood': roomWet(); hudPop('水浸し！', 1.1); break;
+        case 'flood': roomWet(); break;
         case 'slip': sndSplash(); if (!G.popSlip || performance.now() - G.popSlip > 900) { G.popSlip = performance.now(); hudPop('ツルッ！', 0.7); } break;
         // ③ アヒル
         case 'squeak': sndSqueak(); hudPop('ピーッ！', 0.9); break;
@@ -1835,7 +1844,7 @@ function hudStep(text) {
         // ④ ガスボンベ
         case 'capPop': sndPop(); fxCapPop(ev.pos); FX.shake += 0.3; break;
         case 'rocketStart': break;
-        case 'ricochet': sndClang(); fxSparks(ev.pos, 10, 0xffe0a0, 4); FX.shake += 0.25; break;
+        case 'ricochet': sndBonk(); fxBounce(ev.pos); FX.shake += 0.35; bounceBeat(); break;
         case 'done': showResult(); break;
       }
     }
@@ -1894,6 +1903,7 @@ function hudStep(text) {
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;     // 止めている間も last は進める
+    let rcam = false;
     if (portrait.matches) { renderer.render(scene, camera); return; }
     G.time += dt;
     const S = G.S;
@@ -1901,7 +1911,6 @@ function hudStep(text) {
     if (G.phase === 'intro') {
       G.t += dt; G.ts = 1;
       camGo(camIntro(Math.min(1, G.t / CFG.camera.introSec)), dt, null);
-      if (!G.capB && G.t >= CFG.camera.introSec * 0.68) { G.capB = true; hudCap('敵B：窓を見張っている', 1.6); }
       if (G.t >= CFG.camera.introSec) endIntro();
     } else if (G.phase === 'fly1') {
       G.t += dt;
@@ -1948,28 +1957,43 @@ function hudStep(text) {
         // 連鎖はゆっくり流す（chainScale）。ステップごとに「見せ場」で一瞬さらに遅く。タップで 3 倍速の早送り
         let beat = 1;
         if (G.beat) {
-          const age = G.time - G.beat.t0;
-          if (age >= K.dur) G.beat = null;
-          else beat = age < K.ease ? 1 + (K.slow - 1) * (age / K.ease) : age > K.dur - K.ease ? K.slow + (1 - K.slow) * ((age - (K.dur - K.ease)) / K.ease) : K.slow;
+          const age = G.time - G.beat.t0, bd = G.beat.dur, bs = G.beat.slow, ez = Math.min(K.ease, bd / 3);
+          if (age >= bd) G.beat = null;
+          else beat = age < ez ? 1 + (bs - 1) * (age / ez) : age > bd - ez ? bs + (1 - bs) * ((age - (bd - ez)) / ez) : bs;
         }
-        scale = G.fast ? K.ffScale : CFG.time.chainScale * beat;
+        scale = G.fast ? K.ffScale : CFG.time.chainScale * beat * (G.S.flags.rocketOn && G.S.hero.alive ? K.rocketScale : 1);
         G.acc += dt * scale; let n = 0;
         while (G.acc >= CFG.time.step && G.S.state === 'running' && n++ < 12) { simStep(G.S, CFG.time.step); G.acc -= CFG.time.step; if (G.S.events.length) handleEvents(); }
         if (G.S.events.length) handleEvents();
       }
-      G.ts = scale; $('ff').classList.toggle('on', G.phase === 'sim' && !G.fast);
+      G.ts = scale; $('ff').classList.toggle('on', G.phase === 'sim' && !G.fast && G.time - G.simT0 < 4);
       const F = G.S.flags, X = G.S.ext;                       // 消火器の噴射・ロケットの噴射（毎フレームの粒と、1 つだけのループ音）
       if (F.extOn && ROOM.extNozzle) { ROOM.views.ext.obj.updateMatrixWorld(true); ROOM.extNozzle.getWorldPosition(__nz); fxSpray(__nz, { x: -X.dirx, y: 0.05, z: -X.dirz }); sndSprayStart(); } else sndLoopStop('spray');
       if (F.rocketOn && ROOM.cylTail) { ROOM.views.cyl.obj.updateMatrixWorld(true); ROOM.cylTail.getWorldPosition(__nz); const cv = G.S.ents.cyl.body.velocity, cs = Math.hypot(cv.x, cv.y, cv.z) || 1; fxJet(__nz, { x: -cv.x / cs, y: -cv.y / cs, z: -cv.z / cs }); sndJetStart(); }
       if (G.phase === 'result') sndLoopStop('jet');
       // カメラ：ふだんは引き画。ステップが来たら、そのステップの物へ寄って見せる
-      if (G.phase === 'sim' && G.focus && G.time < G.focusUntil && !G.fast) {
+      // ロケットの間：手前の壁を消して外から見る。ボンベと「次にぶつかる所」を結ぶ方向へ、ゆっくり目線を寄せる
+      rcam = G.phase === 'sim' && !G.fast && G.S.target === 'cyl' && F.rocketOn && G.S.hero.alive;
+      if (rcam) {
+        const RC = CFG.rocketCam, R = STAGE1.room, ce = G.S.ents.cyl, cp = posOf(ce), v = ce.body.velocity, sp = Math.hypot(v.x, v.y, v.z) || 1;
+        let tt = 6;                                                // 速さの向きに進むと、いちばん先に当たる面までの距離
+        for (const [ax, lo, hi] of [['x', -R.x, R.x], ['y', 0, R.h], ['z', R.zBack, R.zFront]]) {
+          const d = v[ax] / sp; if (Math.abs(d) < 1e-3) continue;
+          const t = ((d > 0 ? hi : lo) - cp[ax]) / d; if (t > 0 && t < tt) tt = t;
+        }
+        const bx = cp.x + v.x / sp * tt, by = cp.y + v.y / sp * tt, bz = cp.z + v.z / sp * tt;
+        camGo({ x: RC.x, y: RC.y, z: RC.z, lx: RC.cx * 0.25 + cp.x * 0.55 + bx * 0.2, ly: RC.cy * 0.25 + cp.y * 0.55 + by * 0.2, lz: RC.cz * 0.25 + cp.z * 0.55 + bz * 0.2,
+          fov: G.beat && G.beat.bounce ? RC.fovBounce : RC.fov }, dt, RC.k);
+        fxTrailPush(cp); fxTrailDraw();                           // ボンベのうしろの短い軌跡
+      } else if (G.phase === 'sim' && G.focus && G.time < G.focusUntil && !G.fast) {
         const fe = G.S.ents[G.focus], p = posOf(fe), w = camWide(G.S.target);
         let dx = w.x - p.x, dz = w.z - p.z; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
         camGo({ x: clamp(p.x + dx * K.camDist, -3.8, 3.8), y: clamp(p.y + 1.3, 1.9, 3.6), z: Math.min(4.5, p.z + dz * K.camDist), lx: p.x, ly: Math.max(0.6, p.y), lz: p.z, fov: K.fov }, dt, 3.2);
       } else camGo(camWide(G.S.target), dt, 2.2);
     }
 
+    for (const m of ROOM.front) m.visible = !rcam;
+    if (G.phase === 'result' && FX.trailPts.length) { FX.trailPts.length = 0; fxTrailDraw(); }
     roomSync(G.S, G.time); peopleSync(G.S, G.time);
     applyGrade(dt);
     fxUpdate(dt * G.ts); fxTracerUpdate(dt);

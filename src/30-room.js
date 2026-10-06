@@ -117,6 +117,8 @@ function buildRoom(scene) {
 
 // 動く小物・棚・ドラム缶など（STAGE1.ents ごとに見た目を作る。位置は剛体から毎フレーム反映）
 function buildProps(scene) {
+  const RZ = STAGE1.room.zFront;
+  ROOM.front = scene.children.filter(m => m.isMesh && m.position.z > RZ - 0.06 && m.position.z < RZ + 0.4);   // 手前の壁（窓つき）。ロケットの間だけ消して、外から中を見せる
   const E = STAGE1.ents;
   const darkM = stdMat(0x1a1b1d, 0.9), metalG = stdMat(0x6b7078, 0.5, 0.6);
   const V = ROOM.views;
@@ -167,7 +169,7 @@ function buildProps(scene) {
     cyl(g, 0.13, 0.13, 0.012, brass, 0, -0.09, 0);
   });
   wrap('cyl', g => {                                       // ガスボンベ（赤）。ロケットになると軸 +y が機首
-    const r = 0.17, hh = E.cyl.half[1], m = stdMat(0xc0281e, 0.4, 0.3);
+    const r = 0.17, hh = E.cyl.half[1], m = stdMat(0xe63424, 0.4, 0.3, { emissive: 0x7a1208, emissiveIntensity: 0.9 });   // 明るい赤＋うっすら自ら光る（暗い壁の前でも見える）
     cyl(g, r, r, hh * 2 - 0.2, m, 0, 0, 0);
     const dome = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), m); dome.position.y = hh - 0.1; dome.castShadow = true; g.add(dome);
     cyl(g, 0.04, 0.04, 0.14, stdMat(0xb8a040, 0.4, 0.8), 0, hh + 0.05, 0, false);

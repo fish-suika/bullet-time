@@ -59,15 +59,13 @@
   #intro.on{opacity:1}
   #intro h2{font-size:calc(var(--u)*9);letter-spacing:.2em}
   #intro p{margin-top:8px;font-size:calc(var(--u)*3.4);letter-spacing:.15em;opacity:.8}
-  #cap{position:absolute;left:50%;top:60%;transform:translateX(-50%);z-index:7;font-size:calc(var(--u)*3.6);letter-spacing:.12em;padding:calc(var(--u)*1) calc(var(--u)*3.4);border-radius:calc(var(--u)*3);background:rgba(8,10,14,.55);text-shadow:0 1px 6px #000;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .5s}
-  #cap.on{opacity:1}
   #pop{position:absolute;left:50%;top:20%;transform:translate(-50%,-50%);z-index:7;font-size:calc(var(--u)*11);font-weight:700;letter-spacing:.1em;
     opacity:0;pointer-events:none;text-shadow:0 2px 16px #000;white-space:nowrap}
   #pop.on{opacity:1}
-  #step{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + var(--u)*24);transform:translateX(-50%) translateY(calc(var(--u)*2));z-index:7;width:max-content;max-width:calc(100% - var(--u)*8);text-align:center;padding:calc(var(--u)*1.6) calc(var(--u)*4.4);border-radius:calc(var(--u)*3.4);background:rgba(8,10,14,.62);border:1px solid rgba(255,208,74,.5);color:#fff;font-size:calc(var(--u)*5);font-weight:700;letter-spacing:.06em;line-height:1.35;text-shadow:0 2px 8px #000;opacity:0;pointer-events:none;transition:opacity .35s,transform .35s}
+  #step{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + var(--u)*24);transform:translateX(-50%) translateY(calc(var(--u)*2));z-index:7;width:max-content;max-width:calc(100% - var(--u)*8);text-align:center;padding:calc(var(--u)*1.6) calc(var(--u)*4.4);border-radius:calc(var(--u)*3.4);background:rgba(10,12,16,.86);border:1px solid rgba(255,208,74,.65);box-shadow:0 4px 18px rgba(0,0,0,.6);color:#fff;font-size:calc(var(--u)*5);font-weight:800;letter-spacing:.06em;line-height:1.35;text-wrap:balance;text-shadow:0 1px 3px #000,0 2px 8px #000;opacity:0;pointer-events:none;transition:opacity .35s,transform .35s}
   #step.on{opacity:1;transform:translateX(-50%)}
   #ff{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + var(--u)*19);z-index:6;text-align:center;font-size:calc(var(--u)*2.8);letter-spacing:.12em;opacity:0;pointer-events:none;text-shadow:0 1px 6px #000;transition:opacity .3s}
-  #ff.on{opacity:.7}
+  #ff.on{opacity:.5}
   #flash{position:absolute;inset:0;z-index:4;background:#fff;opacity:0;pointer-events:none}
   #hurt{position:absolute;inset:0;z-index:4;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 30%,rgba(190,20,10,.7) 100%);opacity:0;pointer-events:none}
 
@@ -121,7 +119,6 @@
   <div id="pop"></div>
   <div id="step"></div>
   <div id="ff">タップで早送り</div>
-  <div id="cap"></div>
   <div id="flash"></div>
   <div id="hurt"></div>
   <div id="result">

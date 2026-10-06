@@ -178,11 +178,6 @@ function fxSpray(pos, dir) {                                 // 消火器の白�
   for (let i = 0; i < 4; i++) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xf2f6ff, op: 0.65, life: 0.45 + Math.random() * 0.35, s0: 0.05, s1: 0.35 + Math.random() * 0.2,
     vx: dir.x * 4 + rr(0.9), vy: dir.y * 4 + rr(0.5) + 0.3, vz: dir.z * 4 + rr(0.9), spin: 0 });
 }
-function fxJet(pos, back) {                                  // ロケットの噴射（機体の後ろへ）
-  for (let i = 0; i < 4; i++) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: i % 2 ? 0xdff2ff : 0xffe2a0, add: true, op: 0.85, life: 0.25 + Math.random() * 0.25, s0: 0.14, s1: 0.04,
-    vx: back.x * 5 + rr(0.8), vy: back.y * 5 + rr(0.8), vz: back.z * 5 + rr(0.8), spin: 0 });
-  fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xcfd6dc, op: 0.4, life: 0.8, s0: 0.1, s1: 0.5, vx: back.x * 1.5 + rr(0.3), vy: back.y * 1.5 + 0.3, vz: back.z * 1.5 + rr(0.3), spin: 0 });
-}
 function fxCapPop(pos) {                                     // 栓が飛ぶ
   fxSparks(pos, 14, 0xffe8b0, 5);
   for (let i = 0; i < 6; i++) fxSpawn({ x: pos.x, y: pos.y + 1.2, z: pos.z, color: 0xe8f0ff, op: 0.7, life: 0.7, s0: 0.1, s1: 0.5, vx: rr(1.5), vy: 1 + Math.random(), vz: rr(1.5), spin: 0 });
@@ -192,7 +187,7 @@ function fxCapPop(pos) {                                     // 栓が飛ぶ
 function initRain(scene) {
   const N = 520, g = new THREE.BufferGeometry(), pos = new Float32Array(N * 3);
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xbfdcff, size: 0.055, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9fc4ee, size: 2.6, sizeAttenuation: false, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
   pts.frustumCulled = false; pts.visible = false; scene.add(pts);
   FX.rain = { pts, N, pos, r: new Float32Array(N), a: new Float32Array(N), on: false };
   for (let i = 0; i < N; i++) { FX.rain.r[i] = Math.sqrt(Math.random()) * 3.6; FX.rain.a[i] = Math.random() * 6.28; pos[i * 3 + 1] = Math.random() * 4; }
@@ -206,4 +201,14 @@ function fxRainUpdate(dt, on, c) {                           // c: スプリン�
     R.pos[i * 3] = c.x + Math.cos(R.a[i]) * R.r[i]; R.pos[i * 3 + 1] = y; R.pos[i * 3 + 2] = c.z + Math.sin(R.a[i]) * R.r[i];
   }
   R.pts.geometry.attributes.position.needsUpdate = true;
+}
+function fxJet(pos, back) {                                  // ロケットの噴射：細く・薄く（機体を隠さない）
+  for (let i = 0; i < 2; i++) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: i % 2 ? 0xdff2ff : 0xffe2a0, add: true, op: 0.55, life: 0.22 + Math.random() * 0.15, s0: 0.08, s1: 0.025,
+    vx: back.x * 4 + rr(0.5), vy: back.y * 4 + rr(0.5), vz: back.z * 4 + rr(0.5), spin: 0 });
+  if (Math.random() < 0.35) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xcfd6dc, op: 0.18, life: 0.6, s0: 0.06, s1: 0.28, vx: back.x * 1.2 + rr(0.3), vy: back.y * 1.2 + 0.2, vz: back.z * 1.2 + rr(0.3), spin: 0 });
+}
+function fxBounce(pos) {                                     // 壁・天井・床にぶつかった瞬間：明るい火花と砂ぼこり
+  fxSparks(pos, 26, 0xfff0c0, 7);
+  for (let i = 0; i < 8; i++) fxSpawn({ x: pos.x + rr(0.15), y: pos.y + rr(0.15), z: pos.z + rr(0.15), color: 0xb8aea0, op: 0.45, life: 0.7, s0: 0.1, s1: 0.55, vx: rr(1.4), vy: rr(1.0) + 0.3, vz: rr(1.4), spin: 0 });
+  fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xffffff, add: true, op: 0.9, life: 0.12, s0: 0.5, s1: 0.9, spin: 0 });
 }

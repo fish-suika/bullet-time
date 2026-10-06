@@ -109,3 +109,4 @@ function sndRainStart() {                                                       
   setTimeout(() => sndLoopSet('rain', 0.02, 0.6), 1500);
 }
 function sndRainStop() { sndLoopStop('rain'); }
+function sndBonk() { sndTone(260, 120, 0.2, 'triangle', 0.26, 0); sndTone(620, 380, 0.14, 'triangle', 0.1, 0.004); sndNoise(0.09, 0.14, 'lowpass', 2200, 500, 0); }   // 跳ね返りの「ガン！」（ほどほどの音量）

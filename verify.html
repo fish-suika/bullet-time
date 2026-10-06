@@ -134,7 +134,11 @@ const CFG = {
     introSec: 2.5,
   },
   // 連鎖の見せ場：ステップ（ログ）が来るたびに一瞬スローにして、そのステップの物へカメラが寄る
-  beat: { slow: 0.3, dur: 0.7, ease: 0.2, cooldown: 0.5, camHold: 1.1, camDist: 3.4, fov: 50, ffScale: 3 },
+  beat: { slow: 0.3, dur: 0.7, ease: 0.2, cooldown: 0.5, camHold: 1.1, camDist: 3.4, fov: 50, ffScale: 3,
+    bounceSlow: 0.25, bounceDur: 0.45, bounceCool: 0.2, bounceMax: 6,   // ロケットの跳ね返り 1 回ごとの小さな見せ場（回数に上限）
+    rocketScale: 0.8 },                                                  // ロケットの間は、さらに少しゆっくり（見る速さだけ）
+  // ロケットの間のカメラ：手前の壁を消して、部屋の外から全体を見る。ボンベと次にぶつかる所を結んで、ゆっくり追う
+  rocketCam: { x: 0, y: 2.7, z: 9.2, cx: 0, cy: 1.4, cz: -0.3, fov: 50, fovBounce: 40, k: 2.6 },
   ui: { hintSec: 2.2 },
   futures: 4,
 };
