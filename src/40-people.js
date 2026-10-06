@@ -51,11 +51,6 @@ function makePerson(scene, id, look) {
     const gun = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.08), dark); gun.position.set(0, -0.68, -0.02); gun.castShadow = true; P.limbs.armR.add(gun);
     const hand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), skin); hand.position.y = -0.62; P.limbs.armR.add(hand);
   }
-  if (look.flash) {                                        // 左手の懐中電灯の筒とレンズ（光そのものは buildPeople の「リグ」。手を離れると宙を舞う）
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.2, 10), stdMat(0x2a2c30, 0.4, 0.7)); tube.position.set(0, -0.7, 0); P.limbs.armL.add(tube);
-    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 10), new THREE.MeshBasicMaterial({ color: 0xfff6dc })); lens.position.set(0, -0.81, 0); P.limbs.armL.add(lens);
-    P.flashProps = [tube, lens];
-  }
   PEOPLE[id] = P;
   return P;
 }
@@ -63,23 +58,13 @@ function makePerson(scene, id, look) {
 function buildPeople(scene) {
   makePerson(scene, 'hero', { cloth: 0xc8c4b8, pants: 0x3a4a63, hair: 0x2a1c12 });
   makePerson(scene, 'A', { cloth: 0x1b1d24, pants: 0x15161a, hair: 0x101010, mask: true, vest: 0x8f939b });
-  makePerson(scene, 'B', { cloth: 0x4a5a3a, pants: 0x2a2a25, hair: 0x4a3a20, mask: true, vest: 0xc4bc9c, flash: true });
-  // 懐中電灯の光（スポットライト + うっすら見える光の筋）。flash の剛体の位置と向きにそのまま付ける（B の手 → 宙を舞って A の顔へ）
-  const rig = new THREE.Group(), L = 6.5, R = 1.25;
-  const spot = new THREE.SpotLight(0xfff0cc, 3.4, 15, 0.26, 0.55, 1.4); spot.castShadow = false;
-  const tgt = new THREE.Object3D(); tgt.position.set(0, -0.57, -6.15); rig.add(tgt); spot.target = tgt; rig.add(spot);
-  const cg = new THREE.ConeGeometry(R, L, 28, 1, true); cg.translate(0, -L / 2, 0); cg.rotateX(Math.PI / 2);
-  const cone = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: 0xfff0cc, transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  cone.rotation.x = -0.1; cone.renderOrder = 5; rig.add(cone);
-  scene.add(rig); PEOPLE.rig = { g: rig, spot, cone };
+  makePerson(scene, 'B', { cloth: 0x4a5a3a, pants: 0x2a2a25, hair: 0x4a3a20, mask: true, vest: 0xc4bc9c });
 }
 
 function setArms(P, a, b) { if (P.limbs.armL) { P.limbs.armL.rotation.x = a; P.limbs.armR.rotation.x = b; } }
 
 // 剛体 → 見た目、状態 → ポーズ
 function peopleSync(S, time) {
-  const fe = S.ents.flash, rg = PEOPLE.rig;
-  rg.g.position.set(fe.body.position.x, fe.body.position.y, fe.body.position.z); rg.g.quaternion.set(fe.body.quaternion.x, fe.body.quaternion.y, fe.body.quaternion.z, fe.body.quaternion.w);
   for (const id of ['hero', 'A', 'B']) {
     const P = PEOPLE[id], e = S.ents[id], p = e.body.position, q = e.body.quaternion;
     P.outer.position.set(p.x, p.y, p.z); P.outer.quaternion.set(q.x, q.y, q.z, q.w);

@@ -19,7 +19,7 @@ const BUL = {
   obstacles(id) {
     const out = [];
     for (const k in STAGE1.ents) {
-      if (k === id || k === 'flash') continue;
+      if (k === id) continue;
       const d = STAGE1.ents[k], h = d.half || [d.radius, d.radius, d.radius];
       out.push({ id: k, min: [d.pos[0] - h[0], d.pos[1] - h[1], d.pos[2] - h[2]], max: [d.pos[0] + h[0], d.pos[1] + h[1], d.pos[2] + h[2]] });
     }

@@ -99,11 +99,17 @@ test('弾の経路：どの対象でも、対象以外の人・棚・ドラム�
   info('弾の経路のすき間（ふつうの曲がり方 → よける曲がり方）  ' + rows.join('  '));
 });
 // ===== 4 つの未来（基準：配置を揺らさない・乱数 1 つ） =====
-test('① 敵 A を撃つ：倒れながら引き金を引く→弾がガスボンベに命中→大爆発で主人公も吹き飛ぶ（GAME OVER）', () => {
+test('① 敵 A を撃つ：撃たれた拍子に狙いがずれる→弾が主人公の横のガスボンベに命中→大爆発で主人公も吹き飛ぶ（GAME OVER）', () => {
   const S = runSim('A', 1, 0);
-  eq(texts(S), ['敵A', '敵Aが倒れながら引き金を引く', '弾がガスボンベに命中', '大爆発で全員吹き飛ぶ']);
+  eq(texts(S), ['敵A', '撃たれた拍子に敵Aの狙いがずれる', '弾が主人公の横のガスボンベに命中', '大爆発で全員吹き飛ぶ']);
   eq(S.result.ok, false); eq(S.result.sub, '主人公も吹き飛んだ'); eq(S.hero.killedBy, 'blast');
   eq([S.A.state, S.B.state], ['down', 'down'], '全員吹き飛んだ');
+});
+test('① 爆発で主人公が椅子ごと実際に飛ぶ（1.5m 以上動いて宙に浮く）。ほかの未来（②③）では動かない', () => {
+  const S = newSim(STAGE1, mulberry32(1)); simShoot(S, 'A'); const h0 = posOf(S.ents.hero); let maxY = 0, n = 0;
+  while (S.state === 'running' && n++ < 900) { simStep(S, CFG.time.step); if (S.exploded) maxY = Math.max(maxY, posOf(S.ents.hero).y); }
+  eq(dist3(posOf(S.ents.hero), h0) > 1.5, true, '主人公の移動 ' + dist3(posOf(S.ents.hero), h0).toFixed(2) + 'm'); eq(maxY > 1.2, true, '最高 ' + maxY.toFixed(2));
+  for (const id of ['ext', 'duck']) { const T = runSim(id, 1, 0); eq(dist3(posOf(T.ents.hero), { x: 0, y: 0.7, z: -4.15 }) < 0.05, true, id + ' で主人公は動かない'); }
 });
 test('爆発のルール：プレイヤーの弾（④）ではボンベは爆発しない。爆発するのは A の暴発の弾だけ', () => {
   const S = runSim('cyl', 1, 0);

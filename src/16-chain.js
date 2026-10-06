@@ -1,6 +1,6 @@
 // ===== 連鎖のルール。物理の衝突・音・時刻 → 物や敵の動き → 結果。three.js は使わない =====
 // 結果は台本ではなく、剛体の衝突・敵の弾（レイキャスト）・単純な状態機械で決まる。展開は少なく、山場を 1 つ。
-//  ① 敵 A      ：A が倒れながら引き金を引く → 弾がガスボンベに命中 → 大爆発（主人公も吹き飛ぶ）… GAME OVER
+//  ① 敵 A      ：撃たれた拍子に A の狙いがずれる → 弾が主人公の横のガスボンベに命中 → 大爆発（主人公も椅子ごと吹き飛ぶ）… GAME OVER
 //  ② 消火器    ：ロケットのように飛ぶ → A の顔面に直撃 → A が吹っ飛んで B を巻き込む … CLEAR
 //  ③ アヒル    ：ピーッと鳴く → A と B が驚いて撃ち合う → 2 人とも倒れる … CLEAR
 //  ④ ガスボンベ：爆発せず、ロケットになって跳ね回る → 主人公に直撃 … GAME OVER
@@ -40,13 +40,13 @@ function simShoot(S, id) {
   pushLog(S, 'target', tg.name);
   emit(S, { type: 'impact', target: id, point: tg.aim });
   const E = S.ents, br = S.stage.branch;
-  if (id === 'A') {                                          // ① 倒れながら引き金を引く
+  if (id === 'A') {                                          // ① 撃たれた拍子に狙いがずれて引き金を引く（その場で後ろへ倒れる）
     const a = E.A; releaseEnt(a);
     const d = { x: tg.aim.x - br.x, z: tg.aim.z - br.z }, l = Math.hypot(d.x, d.z);
-    a.body.velocity.set(d.x / l * 6.5, 1.5, d.z / l * 6.5);
+    a.body.velocity.set(d.x / l * 2.2, 1.2, d.z / l * 2.2);
     a.body.angularVelocity.set(-3.2, 0, 0);
     S.A.state = 'down';
-    pushLog(S, 'aDown', '敵Aが倒れながら引き金を引く');
+    pushLog(S, 'aDown', '撃たれた拍子に敵Aの狙いがずれる');
     S.discharge.at = S.t + CFG.discharge.at;
   } else if (id === 'ext') {                                  // ② 消火器がロケットのように飛ぶ
     S.ext.on = true; S.ext.t0 = S.t; S.flags.extOn = true;
@@ -75,7 +75,6 @@ function emitNoise(S, kind, pos, loud) {
 function simStep(S, dt) {
   if (S.state !== 'running') return;
   S.t += dt;
-  syncFlashHold(S);
   extUpdate(S); dischargeUpdate(S); igniteUpdate(S); rocketUpdate(S);
   enemyAUpdate(S, dt);
   enemyBUpdate(S, dt);
@@ -86,20 +85,17 @@ function simStep(S, dt) {
   checkEnd(S);
 }
 
-function syncFlashHold(S) {                                   // 懐中電灯は B の手に付いていて、B について動く
-  const f = S.ents.flash, b = S.ents.B.body, o = b.quaternion.vmult(new CANNON.Vec3(-0.3, 0.12, -0.35));
-  f.hold.x = b.position.x + o.x; f.hold.y = b.position.y + o.y; f.hold.z = b.position.z + o.z;
-  f.yaw = S.ents.B.yaw;
-}
 
 // ---- ① 暴発 → 命中 → 爆発 ----
 function dischargeUpdate(S) {
   const D = S.discharge;
   if (D.at === null || D.fired || S.t < D.at) return;
   D.fired = true;
-  const a = S.ents.A, m = muzzleOf(a), c = posOf(S.ents.cyl), e = CFG.discharge.aimErr;
-  let r = fireGun(S, 'A', m, aimDir(m, c, rnd(S, -e, e), rnd(S, -e, e)), 'discharge');
-  if (!(r.ent && r.ent.id === 'cyl')) fireGun(S, 'A', m, aimDir(m, c, 0, 0), 'discharge');          // ずれたときは、そっと補正してボンベに当てる
+  const a = S.ents.A, m = muzzleOf(a), c = posOf(S.ents.cyl), e = CFG.discharge.aimErr;   // 主人公を狙っていた銃口が、撃たれた拍子に横のボンベのほうへずれる
+  let dir = aimDir(m, c, rnd(S, -e, e), rnd(S, -e, e));
+  const t = castRay(S, m, dir, 'A');
+  if (!(t.ent && t.ent.id === 'cyl')) dir = aimDir(m, c, 0, 0);                         // ずれたときは、そっと補正してボンベに当てる（撃つのは 1 発だけ）
+  fireGun(S, 'A', m, dir, 'discharge');
 }
 function igniteUpdate(S) {
   if (S.ignite.at === null || S.exploded || S.t < S.ignite.at) return;
@@ -114,10 +110,13 @@ function explode(S, pos) {
     const e = S.ents[id], p = posOf(e), d = dist3(p, pos);
     if (d > B.radius) continue;
     const k = Math.max(B.min, 1 - d / B.radius);
-    const hx = p.x - pos.x, hz = p.z - pos.z, hl = Math.hypot(hx, hz) || 1;
+    const hx = p.x - pos.x; let hz = p.z - pos.z;
+    if (hz < 0 && p.z - S.stage.room.zBack < 1.2) hz *= 0.15;                         // 奥の壁ぎわの人は、壁へ押し付けず横へ飛ばす（壁に止められて動かなく見えた原因）
+    const hl = Math.hypot(hx, hz) || 1;
     if (e.held) releaseEnt(e);
     e.body.velocity.set(hx / hl * B.speed * k, B.speed * B.up * k + 2, hz / hl * B.speed * k);
-    e.body.angularVelocity.set(rnd(S, -B.spin, B.spin), rnd(S, -1, 1), rnd(S, -B.spin, B.spin));
+    const sp = id === 'hero' ? B.heroSpin : B.spin;                                        // 主人公は椅子ごと派手に回る
+    e.body.angularVelocity.set(rnd(S, -sp, sp), rnd(S, -sp * 0.4, sp * 0.4), rnd(S, -sp, sp));
     if (id === 'A') S.A.state = 'down';
     if (id === 'B') S.B.state = 'down';
     if (id === 'hero' && d < B.lethal && S.hero.alive) {
@@ -220,7 +219,7 @@ function processCollisions(S) {
   for (const c of list) {
     const e = c.ent;
     if (e.id === 'A' && c.other === 'B' && S.ext.faceHit) S.ext.bowlHit = true;                       // 飛んだ A が B にぶつかった
-    else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on) killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
+    else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on && S.t - S.rocket.t0 > 0.25) killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
     else if (e.id === 'cyl' && S.rocket.on && (c.other === 'wall' || c.other === 'ceil' || c.other === 'floor') && c.speed > 4) {
       if (!e.lastBounce || S.t - e.lastBounce > 0.15) { e.lastBounce = S.t; emit(S, { type: 'ricochet', pos: posOf(e), speed: c.speed }); }
     } else if (e.id === 'duck' && c.other === 'floor' && c.speed > 1 && !S.duckLanded) { S.duckLanded = true; emit(S, { type: 'thud', pos: posOf(e), speed: 3, soft: true }); }
@@ -238,7 +237,7 @@ function fireGun(S, who, from, dir, kind) {
     killHero(S, who, '弾が主人公に命中', dir);
   } else if (r.ent && r.ent.id === 'cyl') {
     if (who === 'A' && kind === 'discharge' && S.ignite.at === null && !S.exploded) {                  // A の暴発の弾だけがボンベに火をつける
-      pushLog(S, 'cylHit', '弾がガスボンベに命中');
+      pushLog(S, 'cylHit', '弾が主人公の横のガスボンベに命中');
       S.ignite.at = S.t + CFG.blast.fuse;
     }
   } else if (r.ent && (r.ent.id === 'A' || r.ent.id === 'B')) {

@@ -107,7 +107,7 @@
   }
 
   // 目印：いまの字幕の主役の足元に、細い輪を床に置く。出るのは字幕の最初の 0.8 秒だけ、ふわっと出て消える。カメラは動かさない
-  const HL_R = { A: 0.7, B: 0.7, hero: 0.7, shelf: 0.9, drum: 0.5, ext: 0.45, gun: 0.35, flash: 0.35, sprk: 0.6, duck: 0.35, cyl: 0.5 };
+  const HL_R = { A: 0.7, B: 0.7, hero: 0.7, shelf: 0.9, drum: 0.5, ext: 0.45, gun: 0.35, sprk: 0.6, duck: 0.35, cyl: 0.5 };
   function hlUpdate() {
     const hl = G.hl, m = FX.hl[0];
     const on = hl && !G.push && !G.fast && G.phase === 'sim' && G.time - hl.t0 < CFG.beat.hlDur;

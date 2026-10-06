@@ -172,11 +172,11 @@ const CFG = {
     aimErr: 0.015,           // ふだんの狙いのずれ（ラジアン）
     turnRate: 4.5,           // 振り向く速さ（rad/s）。光が主人公へ振れるのが見える速さ
   },
-  // ① 敵 A を撃つ：A が倒れながら引き金を引く → 弾がガスボンベに命中 → 大爆発（主人公も吹き飛ぶ）
+  // ① 敵 A を撃つ：撃たれた拍子に A の狙いがずれる → 弾が主人公の横のガスボンベに命中 → 大爆発（主人公も椅子ごと吹き飛ぶ）
   //    ルール：ガスボンベが爆発するのは「A の暴発の弾（kind 'discharge'）」が当たったときだけ。プレイヤーの弾（④）は栓を飛ばすだけで爆発しない
   discharge: {
-    at: 0.3,                 // 撃たれてから、倒れながら A が引き金を引くまで
-    aimErr: 0.02,            // ボンベへの狙いのずれ（ラジアン）
+    at: 0.3,                 // 撃たれてから、狙いがずれた弾が出るまで
+    aimErr: 0.02,            // ボンベへの狙いの細かいずれ（ラジアン）
   },
   blast: {
     fuse: 0.3,               // 命中から爆発まで
@@ -184,7 +184,7 @@ const CFG = {
     lethal: 6.2,             // 主人公に届く致死範囲（主人公までの約 5m を含む）
     speed: 11,               // 吹き飛ぶ速さ
     min: 0.4,                // 遠くでも最低これだけの強さ
-    up: 0.6, spin: 4,
+    up: 0.6, spin: 4, heroSpin: 7,
   },
   // ② 消火器：ロケットのように飛ぶ → 敵 A の顔面に直撃 → A が吹っ飛んで B を巻き込む
   ext: {
@@ -243,7 +243,7 @@ const CFG = {
 // ===== STAGE 1「単純な未来」の配置（データだけ。three.js は使わない） =====
 // 座標：x は右、y は上、z は手前（窓の側）。部屋は x ±4.2、z -4.8〜4.8、高さ 4.2。
 // 向き yaw：0 で -z（奥）を向く。yawToward(dx,dz) で向きたい方向から求める
-// 撃てる対象は 4 つ：敵 A（普通の答え → 大爆発）／消火器（地味な置物）／ゴムのアヒル（どうでもいい物）／ガスボンベ（いかにも正解 → 爆発しない）
+// 撃てる対象は 4 つ：敵 A（普通の答え → 大爆発）／消火器（地味な置物）／ゴムのアヒル（どうでもいい物）／ガスボンベ（主人公の隣。撃つと栓が飛んでロケットになる）
 const STAGE1 = {
   title: '単純な未来',
   goal: '主人公を助けろ',
@@ -261,8 +261,7 @@ const STAGE1 = {
     drum:  { kind: 'drum',   pos: [0.6, 0.32, 0.0], radius: 0.32, mass: 10 },                 // ドラム缶（飾り）
     shelf: { kind: 'shelf',  pos: [3.4, 0.85, -2.85], half: [0.3, 0.85, 0.5], mass: 40 },     // B の後ろの棚（飾り。動かない）
     duck:  { kind: 'duck',   pos: [-3.3, 1.42, -3.2], radius: 0.09, mass: 0.15, held: true },          // 左奥の棚の上のアヒル
-    flash: { kind: 'flash',  pos: [2.3, 1.0, -2.7], half: [0.04, 0.04, 0.12], mass: 0.3, held: true }, // B の懐中電灯（ずっと B の手に付いている）
-    cyl:   { kind: 'cyl',    pos: [2.1, 0.65, 0.5], half: [0.17, 0.65, 0.17], mass: 30 },
+    cyl:   { kind: 'cyl',    pos: [-1.4, 0.65, -3.5], half: [0.17, 0.65, 0.17], mass: 30 },   // 主人公の左隣（A の射線のそば。右奥の消火器とは離す）
   },
   chainTop: 4.2,             // 鎖の上端（天井）
   // 撃てる対象。aim は弾が当たる点
@@ -270,7 +269,7 @@ const STAGE1 = {
     { id: 'A',    name: '敵A',        aim: { x: 0,    y: 1.3,  z: -1.05 } },
     { id: 'ext',  name: '消火器',     aim: { x: 1.5, y: 0.22, z: -3.5 } },
     { id: 'duck', name: 'ゴムのアヒル', aim: { x: -3.3, y: 1.44, z: -3.2 } },
-    { id: 'cyl',  name: 'ガスボンベ', aim: { x: 2.1,  y: 1.0,  z: 0.5 } },
+    { id: 'cyl',  name: 'ガスボンベ', aim: { x: -1.4, y: 1.2, z: -3.5 } },
   ],
 };
 
@@ -386,7 +385,7 @@ function castRay(S, from, dir, exclude) {
 }
 // ===== 連鎖のルール。物理の衝突・音・時刻 → 物や敵の動き → 結果。three.js は使わない =====
 // 結果は台本ではなく、剛体の衝突・敵の弾（レイキャスト）・単純な状態機械で決まる。展開は少なく、山場を 1 つ。
-//  ① 敵 A      ：A が倒れながら引き金を引く → 弾がガスボンベに命中 → 大爆発（主人公も吹き飛ぶ）… GAME OVER
+//  ① 敵 A      ：撃たれた拍子に A の狙いがずれる → 弾が主人公の横のガスボンベに命中 → 大爆発（主人公も椅子ごと吹き飛ぶ）… GAME OVER
 //  ② 消火器    ：ロケットのように飛ぶ → A の顔面に直撃 → A が吹っ飛んで B を巻き込む … CLEAR
 //  ③ アヒル    ：ピーッと鳴く → A と B が驚いて撃ち合う → 2 人とも倒れる … CLEAR
 //  ④ ガスボンベ：爆発せず、ロケットになって跳ね回る → 主人公に直撃 … GAME OVER
@@ -426,13 +425,13 @@ function simShoot(S, id) {
   pushLog(S, 'target', tg.name);
   emit(S, { type: 'impact', target: id, point: tg.aim });
   const E = S.ents, br = S.stage.branch;
-  if (id === 'A') {                                          // ① 倒れながら引き金を引く
+  if (id === 'A') {                                          // ① 撃たれた拍子に狙いがずれて引き金を引く（その場で後ろへ倒れる）
     const a = E.A; releaseEnt(a);
     const d = { x: tg.aim.x - br.x, z: tg.aim.z - br.z }, l = Math.hypot(d.x, d.z);
-    a.body.velocity.set(d.x / l * 6.5, 1.5, d.z / l * 6.5);
+    a.body.velocity.set(d.x / l * 2.2, 1.2, d.z / l * 2.2);
     a.body.angularVelocity.set(-3.2, 0, 0);
     S.A.state = 'down';
-    pushLog(S, 'aDown', '敵Aが倒れながら引き金を引く');
+    pushLog(S, 'aDown', '撃たれた拍子に敵Aの狙いがずれる');
     S.discharge.at = S.t + CFG.discharge.at;
   } else if (id === 'ext') {                                  // ② 消火器がロケットのように飛ぶ
     S.ext.on = true; S.ext.t0 = S.t; S.flags.extOn = true;
@@ -461,7 +460,6 @@ function emitNoise(S, kind, pos, loud) {
 function simStep(S, dt) {
   if (S.state !== 'running') return;
   S.t += dt;
-  syncFlashHold(S);
   extUpdate(S); dischargeUpdate(S); igniteUpdate(S); rocketUpdate(S);
   enemyAUpdate(S, dt);
   enemyBUpdate(S, dt);
@@ -472,20 +470,17 @@ function simStep(S, dt) {
   checkEnd(S);
 }
 
-function syncFlashHold(S) {                                   // 懐中電灯は B の手に付いていて、B について動く
-  const f = S.ents.flash, b = S.ents.B.body, o = b.quaternion.vmult(new CANNON.Vec3(-0.3, 0.12, -0.35));
-  f.hold.x = b.position.x + o.x; f.hold.y = b.position.y + o.y; f.hold.z = b.position.z + o.z;
-  f.yaw = S.ents.B.yaw;
-}
 
 // ---- ① 暴発 → 命中 → 爆発 ----
 function dischargeUpdate(S) {
   const D = S.discharge;
   if (D.at === null || D.fired || S.t < D.at) return;
   D.fired = true;
-  const a = S.ents.A, m = muzzleOf(a), c = posOf(S.ents.cyl), e = CFG.discharge.aimErr;
-  let r = fireGun(S, 'A', m, aimDir(m, c, rnd(S, -e, e), rnd(S, -e, e)), 'discharge');
-  if (!(r.ent && r.ent.id === 'cyl')) fireGun(S, 'A', m, aimDir(m, c, 0, 0), 'discharge');          // ずれたときは、そっと補正してボンベに当てる
+  const a = S.ents.A, m = muzzleOf(a), c = posOf(S.ents.cyl), e = CFG.discharge.aimErr;   // 主人公を狙っていた銃口が、撃たれた拍子に横のボンベのほうへずれる
+  let dir = aimDir(m, c, rnd(S, -e, e), rnd(S, -e, e));
+  const t = castRay(S, m, dir, 'A');
+  if (!(t.ent && t.ent.id === 'cyl')) dir = aimDir(m, c, 0, 0);                         // ずれたときは、そっと補正してボンベに当てる（撃つのは 1 発だけ）
+  fireGun(S, 'A', m, dir, 'discharge');
 }
 function igniteUpdate(S) {
   if (S.ignite.at === null || S.exploded || S.t < S.ignite.at) return;
@@ -500,10 +495,13 @@ function explode(S, pos) {
     const e = S.ents[id], p = posOf(e), d = dist3(p, pos);
     if (d > B.radius) continue;
     const k = Math.max(B.min, 1 - d / B.radius);
-    const hx = p.x - pos.x, hz = p.z - pos.z, hl = Math.hypot(hx, hz) || 1;
+    const hx = p.x - pos.x; let hz = p.z - pos.z;
+    if (hz < 0 && p.z - S.stage.room.zBack < 1.2) hz *= 0.15;                         // 奥の壁ぎわの人は、壁へ押し付けず横へ飛ばす（壁に止められて動かなく見えた原因）
+    const hl = Math.hypot(hx, hz) || 1;
     if (e.held) releaseEnt(e);
     e.body.velocity.set(hx / hl * B.speed * k, B.speed * B.up * k + 2, hz / hl * B.speed * k);
-    e.body.angularVelocity.set(rnd(S, -B.spin, B.spin), rnd(S, -1, 1), rnd(S, -B.spin, B.spin));
+    const sp = id === 'hero' ? B.heroSpin : B.spin;                                        // 主人公は椅子ごと派手に回る
+    e.body.angularVelocity.set(rnd(S, -sp, sp), rnd(S, -sp * 0.4, sp * 0.4), rnd(S, -sp, sp));
     if (id === 'A') S.A.state = 'down';
     if (id === 'B') S.B.state = 'down';
     if (id === 'hero' && d < B.lethal && S.hero.alive) {
@@ -606,7 +604,7 @@ function processCollisions(S) {
   for (const c of list) {
     const e = c.ent;
     if (e.id === 'A' && c.other === 'B' && S.ext.faceHit) S.ext.bowlHit = true;                       // 飛んだ A が B にぶつかった
-    else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on) killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
+    else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on && S.t - S.rocket.t0 > 0.25) killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
     else if (e.id === 'cyl' && S.rocket.on && (c.other === 'wall' || c.other === 'ceil' || c.other === 'floor') && c.speed > 4) {
       if (!e.lastBounce || S.t - e.lastBounce > 0.15) { e.lastBounce = S.t; emit(S, { type: 'ricochet', pos: posOf(e), speed: c.speed }); }
     } else if (e.id === 'duck' && c.other === 'floor' && c.speed > 1 && !S.duckLanded) { S.duckLanded = true; emit(S, { type: 'thud', pos: posOf(e), speed: 3, soft: true }); }
@@ -624,7 +622,7 @@ function fireGun(S, who, from, dir, kind) {
     killHero(S, who, '弾が主人公に命中', dir);
   } else if (r.ent && r.ent.id === 'cyl') {
     if (who === 'A' && kind === 'discharge' && S.ignite.at === null && !S.exploded) {                  // A の暴発の弾だけがボンベに火をつける
-      pushLog(S, 'cylHit', '弾がガスボンベに命中');
+      pushLog(S, 'cylHit', '弾が主人公の横のガスボンベに命中');
       S.ignite.at = S.t + CFG.blast.fuse;
     }
   } else if (r.ent && (r.ent.id === 'A' || r.ent.id === 'B')) {
@@ -1114,11 +1112,6 @@ function makePerson(scene, id, look) {
     const gun = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.08), dark); gun.position.set(0, -0.68, -0.02); gun.castShadow = true; P.limbs.armR.add(gun);
     const hand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), skin); hand.position.y = -0.62; P.limbs.armR.add(hand);
   }
-  if (look.flash) {                                        // 左手の懐中電灯の筒とレンズ（光そのものは buildPeople の「リグ」。手を離れると宙を舞う）
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.2, 10), stdMat(0x2a2c30, 0.4, 0.7)); tube.position.set(0, -0.7, 0); P.limbs.armL.add(tube);
-    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 10), new THREE.MeshBasicMaterial({ color: 0xfff6dc })); lens.position.set(0, -0.81, 0); P.limbs.armL.add(lens);
-    P.flashProps = [tube, lens];
-  }
   PEOPLE[id] = P;
   return P;
 }
@@ -1126,23 +1119,13 @@ function makePerson(scene, id, look) {
 function buildPeople(scene) {
   makePerson(scene, 'hero', { cloth: 0xc8c4b8, pants: 0x3a4a63, hair: 0x2a1c12 });
   makePerson(scene, 'A', { cloth: 0x1b1d24, pants: 0x15161a, hair: 0x101010, mask: true, vest: 0x8f939b });
-  makePerson(scene, 'B', { cloth: 0x4a5a3a, pants: 0x2a2a25, hair: 0x4a3a20, mask: true, vest: 0xc4bc9c, flash: true });
-  // 懐中電灯の光（スポットライト + うっすら見える光の筋）。flash の剛体の位置と向きにそのまま付ける（B の手 → 宙を舞って A の顔へ）
-  const rig = new THREE.Group(), L = 6.5, R = 1.25;
-  const spot = new THREE.SpotLight(0xfff0cc, 3.4, 15, 0.26, 0.55, 1.4); spot.castShadow = false;
-  const tgt = new THREE.Object3D(); tgt.position.set(0, -0.57, -6.15); rig.add(tgt); spot.target = tgt; rig.add(spot);
-  const cg = new THREE.ConeGeometry(R, L, 28, 1, true); cg.translate(0, -L / 2, 0); cg.rotateX(Math.PI / 2);
-  const cone = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: 0xfff0cc, transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  cone.rotation.x = -0.1; cone.renderOrder = 5; rig.add(cone);
-  scene.add(rig); PEOPLE.rig = { g: rig, spot, cone };
+  makePerson(scene, 'B', { cloth: 0x4a5a3a, pants: 0x2a2a25, hair: 0x4a3a20, mask: true, vest: 0xc4bc9c });
 }
 
 function setArms(P, a, b) { if (P.limbs.armL) { P.limbs.armL.rotation.x = a; P.limbs.armR.rotation.x = b; } }
 
 // 剛体 → 見た目、状態 → ポーズ
 function peopleSync(S, time) {
-  const fe = S.ents.flash, rg = PEOPLE.rig;
-  rg.g.position.set(fe.body.position.x, fe.body.position.y, fe.body.position.z); rg.g.quaternion.set(fe.body.quaternion.x, fe.body.quaternion.y, fe.body.quaternion.z, fe.body.quaternion.w);
   for (const id of ['hero', 'A', 'B']) {
     const P = PEOPLE[id], e = S.ents[id], p = e.body.position, q = e.body.quaternion;
     P.outer.position.set(p.x, p.y, p.z); P.outer.quaternion.set(q.x, q.y, q.z, q.w);
@@ -1451,7 +1434,7 @@ const BUL = {
   obstacles(id) {
     const out = [];
     for (const k in STAGE1.ents) {
-      if (k === id || k === 'flash') continue;
+      if (k === id) continue;
       const d = STAGE1.ents[k], h = d.half || [d.radius, d.radius, d.radius];
       out.push({ id: k, min: [d.pos[0] - h[0], d.pos[1] - h[1], d.pos[2] - h[2]], max: [d.pos[0] + h[0], d.pos[1] + h[1], d.pos[2] + h[2]] });
     }
@@ -1702,7 +1685,7 @@ function hudStep(text, hold) {
   }
 
   // 目印：いまの字幕の主役の足元に、細い輪を床に置く。出るのは字幕の最初の 0.8 秒だけ、ふわっと出て消える。カメラは動かさない
-  const HL_R = { A: 0.7, B: 0.7, hero: 0.7, shelf: 0.9, drum: 0.5, ext: 0.45, gun: 0.35, flash: 0.35, sprk: 0.6, duck: 0.35, cyl: 0.5 };
+  const HL_R = { A: 0.7, B: 0.7, hero: 0.7, shelf: 0.9, drum: 0.5, ext: 0.45, gun: 0.35, sprk: 0.6, duck: 0.35, cyl: 0.5 };
   function hlUpdate() {
     const hl = G.hl, m = FX.hl[0];
     const on = hl && !G.push && !G.fast && G.phase === 'sim' && G.time - hl.t0 < CFG.beat.hlDur;
