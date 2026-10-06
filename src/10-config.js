@@ -66,8 +66,8 @@ const CFG = {
   // カメラ
   camera: {
     fov: 62,
-    wide: { x: -2.2, y: 3.2, z: 4.3, lx: 1.2, ly: 1.0, lz: -2.2, fov: 68 },
-    freeze: { x: 1.6, y: 2.5, z: 4.9, lx: -0.9, ly: 1.4, lz: -1.2, fov: 70 },
+    wide: { x: -0.8, y: 3.7, z: 4.5, lx: 1.2, ly: 0.8, lz: -2.2, fov: 68 },
+    freeze: { x: 2.4, y: 2.3, z: 4.5, lx: -1.0, ly: 1.1, lz: -1.4, fov: 72 },
     follow: { back: 2.0, up: 0.45, side: 0.7 },
     near: { back: 0.9, up: 0.2, side: 0.35, fov: 36 },
     introSec: 2.5,

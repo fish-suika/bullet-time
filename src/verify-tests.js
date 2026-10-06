@@ -73,7 +73,7 @@ test('レイキャスト：主人公に当たる／手前に敵 A がいると�
   eq(r.ent && r.ent.id, 'hero');
   r = castRay(S, { x: 0, y: 1.0, z: -0.2 }, { x: 0, y: 0, z: -1 }, null);
   eq(r.ent && r.ent.id, 'A', 'A が手前で遮る');
-  r = castRay(S, { x: 0, y: 1.3, z: -2 }, { x: 0, y: 1, z: 0 }, 'A');
+  r = castRay(S, { x: 1.5, y: 1.3, z: -2 }, { x: 0, y: 1, z: 0 }, 'A');
   eq([r.ent === null, r.surface], [true, 'ceiling']);
   near(hero.z, -4.15, 1e-6);
 });
@@ -128,6 +128,12 @@ for (const id of ['lamp', 'banana', 'A', 'bottle']) {
   COUNT[id] = ok;
 }
 info('20 回の成功数（配置・乱数を揺らす）  ランプ ' + COUNT.lamp + '/20  バナナ ' + COUNT.banana + '/20  敵A ' + COUNT.A + '/20  ワイン瓶 ' + COUNT.bottle + '/20');
+// 揺らしを 2.5 倍にしたとき（余裕の見積もり。合否には使わない）
+{
+  const wide = {};
+  for (const id of ['lamp', 'banana']) { let ok = 0; for (let i = 0; i < RUNS; i++) if (runSim(id, 300 + i, 2.5).result.ok) ok++; wide[id] = ok; }
+  info('揺らしを 2.5 倍にしたとき  ランプ ' + wide.lamp + '/20  バナナ ' + wide.banana + '/20');
+}
 test('ランプは 20 回中 19 回以上成功（ほぼ確実）', () => { eq(COUNT.lamp >= 19, true, '成功 ' + COUNT.lamp); });
 test('バナナは 20 回中 18 回以上成功（物理のばらつきで偶然外れることはある）', () => { eq(COUNT.banana >= 18, true, '成功 ' + COUNT.banana); });
 test('敵 A とワイン瓶は 20 回中 1 回も成功しない（ハズレ）', () => { eq([COUNT.A, COUNT.bottle], [0, 0]); });

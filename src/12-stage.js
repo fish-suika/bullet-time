@@ -14,9 +14,9 @@ const STAGE1 = {
     A:      { kind: 'person', pos: [0, 0.9, -1.3],   half: [0.28, 0.9, 0.22], mass: 75, yaw: 0 },
     B:      { kind: 'person', pos: [4.0, 0.9, -2.3], half: [0.28, 0.9, 0.22], mass: 75, yaw: Math.PI * 0.85 },
     lamp:   { kind: 'lamp',   pos: [0, 3.0, -2.1],   radius: 0.3, mass: 4 },
-    table:  { kind: 'table',  pos: [-2.7, 0.4, 0.9], half: [0.9, 0.4, 0.5],   mass: 0 },
-    banana: { kind: 'banana', pos: [-2.35, 0.87, 0.9], half: [0.14, 0.04, 0.06], mass: 0.3, yaw: 0.5 },
-    bottle: { kind: 'bottle', pos: [-3.1, 0.95, 0.8], half: [0.045, 0.15, 0.045], mass: 0.6 },
+    table:  { kind: 'table',  pos: [-2.8, 0.4, 1.9], half: [1.1, 0.4, 0.5],   mass: 0 },
+    banana: { kind: 'banana', pos: [-1.95, 0.87, 2.05], half: [0.14, 0.04, 0.06], mass: 0.3, yaw: 0.5 },
+    bottle: { kind: 'bottle', pos: [-3.7, 0.95, 1.7], half: [0.045, 0.15, 0.045], mass: 0.6 },
     crate:  { kind: 'crate',  pos: [4.8, 0.4, -3.2], half: [0.4, 0.4, 0.4],   mass: 25 },
     cyl:    { kind: 'cyl',    pos: [5.0, 0.65, -4.3], half: [0.17, 0.65, 0.17], mass: 30 },
   },
@@ -25,8 +25,8 @@ const STAGE1 = {
   targets: [
     { id: 'A',      name: '敵A',     aim: { x: 0,     y: 1.3,  z: -1.05 } },
     { id: 'lamp',   name: 'ランプ',  aim: { x: 0,     y: 3.85, z: -2.1 } },
-    { id: 'banana', name: 'バナナ',  aim: { x: -2.35, y: 0.95, z: 0.9 } },
-    { id: 'bottle', name: 'ワイン瓶', aim: { x: -3.1,  y: 1.08, z: 0.8 } },
+    { id: 'banana', name: 'バナナ',  aim: { x: -1.95, y: 0.95, z: 2.05 } },
+    { id: 'bottle', name: 'ワイン瓶', aim: { x: -3.7, y: 1.08, z: 1.7 } },
   ],
 };
 

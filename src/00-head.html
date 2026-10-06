@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>BULLET TIME</title>
+<style>
+  :root{--ink:#f2efe8;--gold:#ffd04a;--ice:#8fc8ff;--red:#e0483c;--jp:"Hiragino Kaku Gothic ProN","Yu Gothic","YuGothic","Meiryo","Noto Sans JP",sans-serif}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#05070a;color:var(--ink);font-family:var(--jp);
+    touch-action:none;user-select:none;-webkit-user-select:none}
+  canvas{display:block;width:100%;height:100%}
+  button{font-family:var(--jp)}
+
+  /* ---- 画面の上：目的・未来の数・やり直し ---- */
+  #obj{position:fixed;left:16px;top:12px;z-index:6;pointer-events:none;text-shadow:0 1px 8px #000}
+  #obj b{display:block;font-size:clamp(15px,2.4vw,20px);letter-spacing:.12em}
+  #obj small{display:block;margin-top:2px;font-size:12px;opacity:.75;letter-spacing:.08em}
+  #topR{position:fixed;right:16px;top:12px;z-index:7;display:flex;align-items:center;gap:10px}
+  #fut{padding:5px 14px;border-radius:18px;background:rgba(8,10,14,.6);font-size:15px;letter-spacing:.1em;pointer-events:none}
+  #fut b{font-size:20px;color:var(--gold);font-variant-numeric:tabular-nums}
+  #retryBtn{padding:5px 14px;border:1px solid rgba(255,255,255,.5);border-radius:18px;background:rgba(8,10,14,.6);color:var(--ink);
+    font-size:13px;letter-spacing:.08em;cursor:pointer;touch-action:manipulation}
+  #retryBtn.off{display:none}
+
+  /* ---- 分岐点：青白い色合いと、印（輪） ---- */
+  #tint{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .25s;
+    background:radial-gradient(ellipse at center,rgba(90,150,255,.0) 45%,rgba(20,50,130,.38) 100%)}
+  #tint.on{opacity:1}
+  #markers{position:fixed;inset:0;z-index:8;pointer-events:none}
+  .mk{position:absolute;display:none;width:76px;height:76px;margin:-38px 0 0 -38px;cursor:pointer;pointer-events:auto;touch-action:manipulation}
+  .mk.on{display:block}
+  .mk i{position:absolute;left:10px;top:10px;width:56px;height:56px;border-radius:50%;border:3px solid rgba(255,255,255,.85);
+    background:rgba(255,255,255,.08);box-shadow:0 0 12px rgba(0,0,0,.6),inset 0 0 8px rgba(0,0,0,.4);transition:transform .12s}
+  .mk span{position:absolute;left:50%;top:68px;transform:translateX(-50%);white-space:nowrap;font-size:13px;font-weight:700;letter-spacing:.12em;
+    text-shadow:0 1px 6px #000,0 0 3px #000}
+  .mk.sel i{border-color:var(--gold);background:rgba(255,208,74,.16);transform:scale(1.18);animation:pulse .9s ease-in-out infinite}
+  .mk.sel span{color:var(--gold);font-size:15px}
+  @keyframes pulse{0%,100%{box-shadow:0 0 12px rgba(255,208,74,.5),inset 0 0 8px rgba(0,0,0,.4)}50%{box-shadow:0 0 26px rgba(255,208,74,.95),inset 0 0 8px rgba(0,0,0,.4)}}
+  #fireBtn{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:9;display:none;
+    padding:12px 34px;border:2px solid var(--gold);border-radius:30px;background:rgba(60,44,10,.88);color:var(--gold);font-size:20px;font-weight:700;
+    letter-spacing:.3em;cursor:pointer;touch-action:manipulation}
+  #fireBtn.on{display:block}
+  #hint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:6;font-size:13px;letter-spacing:.1em;opacity:0;pointer-events:none;
+    text-shadow:0 1px 6px #000;transition:opacity .2s;white-space:nowrap}
+  #hint.on{opacity:.85}
+  body.touch #hint{display:none}
+
+  /* ---- 状況を見る・お知らせ ---- */
+  #intro{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);z-index:7;text-align:center;opacity:0;pointer-events:none;transition:opacity .3s;text-shadow:0 2px 14px #000}
+  #intro.on{opacity:1}
+  #intro h2{font-size:clamp(24px,5vw,44px);letter-spacing:.2em}
+  #intro p{margin-top:8px;font-size:14px;letter-spacing:.15em;opacity:.8}
+  #pop{position:fixed;left:50%;top:26%;transform:translate(-50%,-50%);z-index:7;font-size:clamp(26px,6vw,52px);font-weight:700;letter-spacing:.1em;
+    opacity:0;pointer-events:none;text-shadow:0 2px 16px #000;white-space:nowrap}
+  #pop.on{opacity:1}
+  #flash{position:fixed;inset:0;z-index:4;background:#fff;opacity:0;pointer-events:none}
+  #hurt{position:fixed;inset:0;z-index:4;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 30%,rgba(190,20,10,.7) 100%);opacity:0;pointer-events:none}
+
+  /* ---- 結果 ---- */
+  #result{position:fixed;inset:0;z-index:12;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;text-align:center;
+    background:rgba(6,8,12,.62)}
+  #result.on{display:flex}
+  #result h2{font-size:clamp(34px,8vw,64px);letter-spacing:.12em}
+  #result h2.ok{color:var(--gold)} #result h2.ng{color:var(--red)}
+  #result .sub{font-size:clamp(16px,3vw,22px);letter-spacing:.2em;opacity:.9}
+  #chain{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 8px;max-width:min(860px,94vw);margin-top:6px;font-size:clamp(14px,2.3vw,19px)}
+  #chain span{padding:4px 12px;border-radius:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);white-space:nowrap}
+  #chain span.last{background:rgba(255,208,74,.2);border-color:var(--gold)}
+  #chain span.last.ng{background:rgba(224,72,60,.22);border-color:var(--red)}
+  #chain b{opacity:.55;font-weight:400}
+  #resFut{font-size:clamp(16px,2.6vw,20px);letter-spacing:.15em}
+  #resFut b{color:var(--gold);font-size:1.4em}
+  #againBtn{margin-top:6px;font-size:18px;font-weight:700;letter-spacing:.2em;color:#fff;background:#c8402f;border:0;border-radius:28px;padding:11px 34px;cursor:pointer;touch-action:manipulation}
+  #result small{font-size:12px;opacity:.6;letter-spacing:.1em}
+
+  /* ---- スマホが縦向きのときの案内（縦では操作しにくいので、横にしてもらう） ---- */
+  #rotate{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;
+    gap:22px;padding:24px;text-align:center;background:#0b0e14}
+  #rotate .phone{width:46px;height:80px;border:4px solid var(--ink);border-radius:9px;position:relative;animation:turn 2.4s ease-in-out infinite}
+  #rotate .phone::after{content:"";position:absolute;left:50%;bottom:5px;width:8px;height:8px;margin-left:-4px;border-radius:50%;background:var(--ink)}
+  @keyframes turn{0%,25%{transform:rotate(0)}55%,85%{transform:rotate(-90deg)}100%{transform:rotate(0)}}
+  #rotate p{font-size:20px;letter-spacing:.1em;line-height:1.8}
+  #rotate small{display:block;font-size:14px;opacity:.75;letter-spacing:.05em}
+  @media (orientation: portrait) and (pointer: coarse){#rotate{display:flex}}
+
+  /* ---- スマホの横画面（高さが低い）：文字を小さく、重ならないように ---- */
+  @media (max-height:500px){
+    #obj{left:10px;top:8px} #obj b{font-size:14px} #obj small{font-size:11px}
+    #topR{right:10px;top:8px;gap:6px} #fut{padding:3px 10px;font-size:13px} #fut b{font-size:16px} #retryBtn{padding:3px 10px;font-size:12px}
+    .mk{width:64px;height:64px;margin:-32px 0 0 -32px}
+    .mk i{left:8px;top:8px;width:48px;height:48px}
+    .mk span{top:58px;font-size:12px} .mk.sel span{font-size:13px}
+    #fireBtn{padding:8px 26px;font-size:17px;bottom:10px;right:14px}
+    #intro{top:36%} #intro h2{font-size:26px} #intro p{font-size:12px}
+    #pop{top:30%;font-size:28px}
+    #result{gap:6px;padding:8px} #result h2{font-size:34px} #result .sub{font-size:15px}
+    #chain{font-size:13px;gap:4px 6px;margin-top:2px} #chain span{padding:2px 9px}
+    #resFut{font-size:14px} #againBtn{padding:7px 26px;font-size:15px;margin-top:2px} #result small{display:none}
+    #hint{bottom:8px;font-size:12px}
+  }
+</style>
+</head>
+<body>
+<div id="tint"></div>
+<div id="obj"><b>目的：主人公を助けろ</b><small>3.5 秒後、敵が主人公を撃つ</small></div>
+<div id="topR"><div id="fut">未来 <b id="futN">0</b>/4</div><button id="retryBtn" class="off">やり直し（R）</button></div>
+<div id="markers">
+  <div class="mk" data-id="A"><i></i><span></span></div>
+  <div class="mk" data-id="lamp"><i></i><span></span></div>
+  <div class="mk" data-id="banana"><i></i><span></span></div>
+  <div class="mk" data-id="bottle"><i></i><span></span></div>
+</div>
+<button id="fireBtn">撃つ</button>
+<div id="hint">← → ↑ ↓ で選ぶ　　Enter / Space で撃つ　　R でやり直し</div>
+<div id="intro"><h2>状況を見る</h2><p>タップかキーで飛ばす</p></div>
+<div id="pop"></div>
+<div id="flash"></div>
+<div id="hurt"></div>
+<div id="result">
+  <h2 id="resTitle"></h2><div class="sub" id="resSub"></div>
+  <div id="chain"></div>
+  <div id="resFut"></div>
+  <button id="againBtn">もう一度（R）</button>
+  <small>画面をタップでもやり直せます</small>
+</div>
+<div id="rotate"><div class="phone"></div><p>横画面にしてください<small>スマホを横向きにすると遊べます</small></p></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+<script>
+"use strict";
