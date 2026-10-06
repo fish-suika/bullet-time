@@ -82,21 +82,30 @@ function sndWhooshStop() {
 
 // ---- 新しい未来の音 ----
 function sndSqueak() { sndTone(1500, 2300, 0.09, 'square', 0.22, 0); sndTone(2300, 1700, 0.16, 'square', 0.2, 0.09); }     // ゴムのアヒル「ピーッ」
-function sndHiss() { sndNoise(0.12, 0.22, 'highpass', 3000, 6000, 0); }                                                    // 消火器の噴射（毎フレーム足す）
 function sndPop() { sndTone(300, 80, 0.12, 'sine', 0.6, 0); sndNoise(0.18, 0.5, 'bandpass', 1800, 300, 0); }                // 栓が飛ぶ
 function sndClang() { sndTone(420, 260, 0.35, 'triangle', 0.35, 0); sndTone(840, 520, 0.25, 'triangle', 0.18, 0.005); sndNoise(0.1, 0.3, 'bandpass', 2000, 600, 0); }   // ロケットの跳ね返り・ドラム缶
-function sndJet() { sndNoise(0.15, 0.2, 'bandpass', 1500, 2500, 0); }                                                       // ロケットの噴射
-function sndSplash() { sndNoise(0.15, 0.1, 'highpass', 1500, 5000, 0); sndTone(500, 180, 0.12, 'sine', 0.12, 0); }          // すべって転ぶ
-let __rainNode = null;
-function sndRainStart() {                                                                                                   // 雨音（水浸しの間ずっと）
-  if (!SND.ctx || SND.mute || __rainNode) return;
+function sndSplash() { sndNoise(0.15, 0.06, 'lowpass', 2500, 400, 0); sndTone(500, 180, 0.12, 'sine', 0.08, 0); }          // すべって転ぶ
+// ずっと鳴る音（噴射・雨）は「1 つの輪（ループ）」だけを、ゆっくり出して・ゆっくり消す。ローパスで柔らかく、音量は衝撃音よりずっと小さく
+const __loops = {};
+function sndLoopStart(name, type, freq, q, gain) {
+  if (!SND.ctx || SND.mute || __loops[name]) return;
   const s = SND.ctx.createBufferSource(), f = SND.ctx.createBiquadFilter(), g = SND.ctx.createGain();
-  s.buffer = SND.noise; s.loop = true; f.type = 'highpass'; f.frequency.value = 2500; g.gain.value = 0.0;
-  s.connect(f); f.connect(g); g.connect(SND.out); s.start(); g.gain.setTargetAtTime(0.18, SND.ctx.currentTime, 0.3);
-  __rainNode = { s, g };
+  s.buffer = SND.noise; s.loop = true; f.type = type; f.frequency.value = freq; f.Q.value = q; g.gain.value = 0;
+  s.connect(f); f.connect(g); g.connect(SND.out); s.start(); g.gain.setTargetAtTime(gain, SND.ctx.currentTime, 0.25);
+  __loops[name] = { s, g, f };
 }
-function sndRainStop() {
-  if (!__rainNode) return;
-  const r = __rainNode; __rainNode = null;
-  try { r.g.gain.setTargetAtTime(0, SND.ctx.currentTime, 0.1); r.s.stop(SND.ctx.currentTime + 0.5); } catch (e) {}
+function sndLoopSet(name, gain, tc) { const l = __loops[name]; if (l) l.g.gain.setTargetAtTime(gain, SND.ctx.currentTime, tc || 0.4); }
+function sndLoopStop(name) {
+  const l = __loops[name]; if (!l) return;
+  delete __loops[name];
+  try { l.g.gain.setTargetAtTime(0, SND.ctx.currentTime, 0.12); l.s.stop(SND.ctx.currentTime + 0.7); } catch (e) {}
 }
+function sndLoopsStop() { for (const n of Object.keys(__loops)) sndLoopStop(n); }
+function sndJetStart() { sndLoopStart('jet', 'lowpass', 650, 0.7, 0.05); }                       // ロケットの噴射：低いごー
+function sndSprayStart() { sndLoopStart('spray', 'lowpass', 2200, 0.5, 0.04); }                 // 消火器の噴射：やわらかいしゅー
+function sndRainStart() {                                                                          // 雨：はじめだけ少し大きく、1.5 秒かけて小さな背景のさー
+  if (!SND.ctx || SND.mute || __loops.rain) return;
+  sndLoopStart('rain', 'lowpass', 2600, 0.4, 0.06);
+  setTimeout(() => sndLoopSet('rain', 0.02, 0.6), 1500);
+}
+function sndRainStop() { sndLoopStop('rain'); }

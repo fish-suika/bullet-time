@@ -46,7 +46,7 @@
   // ---------- 局面の切り替え ----------
   function startRound() {                                    // 新しい世界を作って、発射直後からやり直す（0.3 秒もかからない）
     hudHideResult(); hudMarkers(null); hudTint(false); hudIntro(false);
-    sndWhooshStop(); sndRainStop(); fxClear();
+    sndWhooshStop(); sndLoopsStop(); fxClear(); G.fast = false; G.beat = null; G.focus = null; G.focusUntil = 0; hudStep(null); $('ff').classList.remove('on');
     G.S = newSim(STAGE1, Math.random);
     roomReset(); G.acc = 0; G.hero = false;
     startFly1();
@@ -96,10 +96,19 @@
     handleEvents();
   }
   function showResult() {
-    G.phase = 'result'; hudRetryBtn(false);
+    G.phase = 'result'; hudRetryBtn(false); hudStep(null); sndLoopsStop();
     const res = G.S.result;
     hudResult(res, G.nFound);
     sndResult(res.ok);
+  }
+
+  // ---------- 連鎖の 1 ステップ（ログに足されたとき）：字幕・カメラ・見せ場のスロー ----------
+  function stepBeat(ev) {
+    const K = CFG.beat;
+    hudStep(ev.text);
+    if (G.fast) return;
+    if (ev.focus) { G.focus = ev.focus; G.focusUntil = G.time + K.camHold; }
+    if (!G.beat && G.time >= (G.beatOk || 0)) { G.beat = { t0: G.time }; G.beatOk = G.time + K.dur + K.cooldown; }     // 続けて来たステップは、スローを重ねず字幕とカメラだけ
   }
 
   // ---------- 連鎖の出来事 → 見た目と音 ----------
@@ -120,7 +129,7 @@
         case 'shelfBump': sndClang(); FX.shake += 0.2; break;
         case 'paintCap': sndClang(); fxSparks(ev.pos, 8, 0xffffff, 2); hudPop('ゴンッ！', 0.9); break;
         // ② 消火器
-        case 'extStart': sndHiss(); break;
+        case 'step': stepBeat(ev); break;
         case 'extHit': sndClang(); fxSparks(ev.pos, 10, 0xffe0a0, 3); break;
         case 'flashThrow': sndThud(2); break;
         case 'sprinkler': sndGlass(); fxSparks(ev.pos, 14, 0xdfeeff, 3); sndRainStart(); break;
@@ -131,7 +140,7 @@
         case 'speech': hudPop('「' + ev.text + '」', 0.9); break;
         // ④ ガスボンベ
         case 'capPop': sndPop(); fxCapPop(ev.pos); FX.shake += 0.3; break;
-        case 'rocketStart': sndJet(); break;
+        case 'rocketStart': break;
         case 'ricochet': sndClang(); fxSparks(ev.pos, 10, 0xffe0a0, 4); FX.shake += 0.25; break;
         case 'done': showResult(); break;
       }
@@ -157,7 +166,7 @@
     startRound();
   }
   initInput({
-    any() { sndInit(); tryLandscape(); if (G.phase === 'intro' && !portrait.matches) endIntro(); },
+    any() { sndInit(); tryLandscape(); if (G.phase === 'intro' && !portrait.matches) endIntro(); else if (G.phase === 'sim') G.fast = true; },
     dir: doDir,
     confirm() { if (G.phase === 'freeze') fire(); else if (G.phase === 'result') doRetry(); },
     retry: doRetry,
@@ -239,16 +248,32 @@
       sndWhooshSet(0.25 + near * 0.75);
       if (tau >= 1) impact();
     } else {                                                   // sim / result
+      const K = CFG.beat;
+      let scale = 1;
       if (G.phase === 'sim') {
-        G.acc += dt; let n = 0;
-        while (G.acc >= CFG.time.step && G.S.state === 'running' && n++ < 10) { simStep(G.S, CFG.time.step); G.acc -= CFG.time.step; if (G.S.events.length) handleEvents(); }
+        // 連鎖はゆっくり流す（chainScale）。ステップごとに「見せ場」で一瞬さらに遅く。タップで 3 倍速の早送り
+        let beat = 1;
+        if (G.beat) {
+          const age = G.time - G.beat.t0;
+          if (age >= K.dur) G.beat = null;
+          else beat = age < K.ease ? 1 + (K.slow - 1) * (age / K.ease) : age > K.dur - K.ease ? K.slow + (1 - K.slow) * ((age - (K.dur - K.ease)) / K.ease) : K.slow;
+        }
+        scale = G.fast ? K.ffScale : CFG.time.chainScale * beat;
+        G.acc += dt * scale; let n = 0;
+        while (G.acc >= CFG.time.step && G.S.state === 'running' && n++ < 12) { simStep(G.S, CFG.time.step); G.acc -= CFG.time.step; if (G.S.events.length) handleEvents(); }
         if (G.S.events.length) handleEvents();
       }
-      G.ts = 1;
-      const F = G.S.flags, X = G.S.ext;                       // 消火器の噴射・ロケットの噴射（毎フレームの粒）
-      if (F.extOn && ROOM.extNozzle) { ROOM.views.ext.obj.updateMatrixWorld(true); ROOM.extNozzle.getWorldPosition(__nz); fxSpray(__nz, { x: -X.dirx, y: 0.05, z: -X.dirz }); if ((G.frameN = (G.frameN || 0) + 1) % 5 === 0) sndHiss(); }
-      if (F.rocketOn && ROOM.cylTail) { ROOM.views.cyl.obj.updateMatrixWorld(true); ROOM.cylTail.getWorldPosition(__nz); const cv = G.S.ents.cyl.body.velocity, cs = Math.hypot(cv.x, cv.y, cv.z) || 1; fxJet(__nz, { x: -cv.x / cs, y: -cv.y / cs, z: -cv.z / cs }); if ((G.frameN = (G.frameN || 0) + 1) % 6 === 0) sndJet(); }
-      camGo(camWide(G.S.target), dt, 2.2);
+      G.ts = scale; $('ff').classList.toggle('on', G.phase === 'sim' && !G.fast);
+      const F = G.S.flags, X = G.S.ext;                       // 消火器の噴射・ロケットの噴射（毎フレームの粒と、1 つだけのループ音）
+      if (F.extOn && ROOM.extNozzle) { ROOM.views.ext.obj.updateMatrixWorld(true); ROOM.extNozzle.getWorldPosition(__nz); fxSpray(__nz, { x: -X.dirx, y: 0.05, z: -X.dirz }); sndSprayStart(); } else sndLoopStop('spray');
+      if (F.rocketOn && ROOM.cylTail) { ROOM.views.cyl.obj.updateMatrixWorld(true); ROOM.cylTail.getWorldPosition(__nz); const cv = G.S.ents.cyl.body.velocity, cs = Math.hypot(cv.x, cv.y, cv.z) || 1; fxJet(__nz, { x: -cv.x / cs, y: -cv.y / cs, z: -cv.z / cs }); sndJetStart(); }
+      if (G.phase === 'result') sndLoopStop('jet');
+      // カメラ：ふだんは引き画。ステップが来たら、そのステップの物へ寄って見せる
+      if (G.phase === 'sim' && G.focus && G.time < G.focusUntil && !G.fast) {
+        const fe = G.S.ents[G.focus], p = posOf(fe), w = camWide(G.S.target);
+        let dx = w.x - p.x, dz = w.z - p.z; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+        camGo({ x: clamp(p.x + dx * K.camDist, -3.8, 3.8), y: clamp(p.y + 1.3, 1.9, 3.6), z: Math.min(4.5, p.z + dz * K.camDist), lx: p.x, ly: Math.max(0.6, p.y), lz: p.z, fov: K.fov }, dt, 3.2);
+      } else camGo(camWide(G.S.target), dt, 2.2);
     }
 
     roomSync(G.S, G.time); peopleSync(G.S, G.time);

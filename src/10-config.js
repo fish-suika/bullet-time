@@ -8,6 +8,7 @@ const CFG = {
     endAt: 6.0,              // 命中からこの時刻まで主人公が無事なら CLEAR
     hitHold: 1.3,            // 主人公が撃たれてから結果を出すまでの間
     simMax: 9,               // 念のための上限
+    chainScale: 0.6,         // 命中後の連鎖を流す速さ（1 でそのまま。論理の時間は変えず、見る速さだけ遅くする）
   },
   // 弾の飛行（slow は演出用の「ゲーム内の時間の遅さ」。弾の進みは下の秒数で決める）
   bullet: {
@@ -108,6 +109,8 @@ const CFG = {
     near: { back: 0.9, up: 0.2, side: 0.3, fov: 30 },
     introSec: 2.5,
   },
+  // 連鎖の見せ場：ステップ（ログ）が来るたびに一瞬スローにして、そのステップの物へカメラが寄る
+  beat: { slow: 0.3, dur: 0.7, ease: 0.2, cooldown: 0.5, camHold: 1.1, camDist: 3.4, fov: 50, ffScale: 3 },
   ui: { hintSec: 2.2 },
   futures: 4,
 };

@@ -19,7 +19,13 @@ function newSim(stage, rng) {
 }
 
 function rnd(S, a, b) { return a + (b - a) * S.rng(); }
-function pushLog(S, key, text) { if (S.logKeys[key]) return; S.logKeys[key] = 1; S.log.push({ key, text, t: S.t }); }
+// ステップごとにカメラが見る物（ログのキー → 物の名前）
+const STEP_FOCUS = { aDown: 'A', gunSlide: 'gun', stoop: 'B', butt: 'shelf', paint: 'B', blind: 'B', heroHit: 'hero', allMiss: 'hero', ext: 'ext', drumHit: 'drum', bKnock: 'B', flashA: 'flash',
+  dazzle: 'A', sprinkler: 'sprk', slipLoop: 'B', duck: 'duck', aTurn: 'A', bLit: 'B', shootout: 'A', bothDown: 'B', cylShot: 'cyl', rocket: 'cyl', dodge: 'A' };
+function pushLog(S, key, text) {
+  if (S.logKeys[key]) return; S.logKeys[key] = 1; S.log.push({ key, text, t: S.t });
+  if (key !== 'target' && key !== 'end') S.events.push({ type: 'step', key, text, focus: STEP_FOCUS[key] || null });   // 画面の字幕・見せ場の合図（本物の出来事から出る）
+}
 function emit(S, ev) { S.events.push(ev); }
 function posOf(e) { const p = e.body.position; return { x: p.x, y: p.y, z: p.z }; }
 function dist3(a, b) { return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z); }
