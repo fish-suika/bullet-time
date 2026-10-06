@@ -16,9 +16,13 @@ function sndInit() {
   } catch (e) { SND.ctx = null; }                         // 音が出せない環境では鳴らさないだけ
 }
 
+function sndResume() { if (SND.ctx && SND.ctx.state !== 'running') { try { SND.ctx.resume(); } catch (e) {} } }
+addEventListener('visibilitychange', () => { if (!document.hidden) sndResume(); });
+
 // 音程のある音（freq から to へ下がる・上がる）
 function sndTone(freq, to, dur, type, vol, delay) {
   if (!SND.ctx || SND.mute) return;
+  sndResume();
   const t0 = SND.ctx.currentTime + (delay || 0), o = SND.ctx.createOscillator(), g = SND.ctx.createGain();
   o.type = type; o.frequency.setValueAtTime(freq, t0);
   o.frequency.exponentialRampToValueAtTime(Math.max(20, to), t0 + dur);
@@ -31,6 +35,7 @@ function sndTone(freq, to, dur, type, vol, delay) {
 // ざらついた音（フィルタの周波数を from から to へ動かす）
 function sndNoise(dur, vol, filter, from, to, delay) {
   if (!SND.ctx || SND.mute) return;
+  sndResume();
   const t0 = SND.ctx.currentTime + (delay || 0), s = SND.ctx.createBufferSource(), f = SND.ctx.createBiquadFilter(), g = SND.ctx.createGain();
   s.buffer = SND.noise;
   f.type = filter; f.frequency.setValueAtTime(from, t0);

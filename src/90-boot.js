@@ -25,7 +25,7 @@
   fit();
   CAM.cam = camera;
 
-  const G = { phase: 'intro', S: null, sel: 'A', introDone: false, glassBroken: false, found: {}, nFound: 0, t: 0, time: 0, ts: 1, acc: 0,
+  const G = { phase: 'title', S: null, sel: 'A', introDone: false, glassBroken: false, found: {}, nFound: 0, t: 0, time: 0, ts: 1, acc: 0,
     capQ: [], capCur: null, pendingResult: false, capShownAt: 0, capMin: 0, curve: null, f1: null, grade: 0, lastRetry: 0, camDir: { x: 0, y: 0, z: -1 }, hero: false };
   window.GAME = G;                                           // 確認用（テストプレイで局面を直接動かす）
 
@@ -50,6 +50,10 @@
     G.S = newSim(STAGE1, Math.random);
     roomReset(); G.acc = 0; G.hero = false;
     startFly1();
+  }
+  function startGame() {                                     // 最初のタップ：音を先に有効にしてからイントロへ（これがないとイントロの音が鳴らない）
+    sndInit(); sndResume(); sndConfirm(); tryLandscape();
+    $('title').classList.remove('on'); startIntro();
   }
   function startIntro() {
     G.phase = 'intro'; G.t = 0; G.S = newSim(STAGE1, Math.random); roomReset(); hudIntro(true); hudRetryBtn(false);
@@ -188,12 +192,12 @@
     if (n !== G.sel) { G.sel = n; sndTick(); }
   }
   function doRetry() {
-    if (G.phase === 'intro') return;
+    if (G.phase === 'intro' || G.phase === 'title') return;
     const now = performance.now(); if (now - G.lastRetry < 200) return; G.lastRetry = now;
     startRound();
   }
   initInput({
-    any() { sndInit(); tryLandscape(); if (G.phase === 'intro' && !portrait.matches) endIntro(); else if (G.phase === 'sim' && !G.fast) { G.fast = true; G.capQ = []; hudStep(null); } },
+    any() { if (G.phase === 'title') { if (!portrait.matches) startGame(); return; } sndInit(); tryLandscape(); if (G.phase === 'intro' && !portrait.matches) endIntro(); else if (G.phase === 'sim' && !G.fast) { G.fast = true; G.capQ = []; hudStep(null); } },
     dir: doDir,
     confirm() { if (G.phase === 'freeze') fire(); else if (G.phase === 'result') doRetry(); },
     retry: doRetry,
@@ -222,13 +226,14 @@
   }
 
   // ---------- 毎フレーム ----------
-  startIntro();
+  $('title').classList.add('on'); G.t = 0; G.S = newSim(STAGE1, Math.random); roomReset(); hudRetryBtn(false);
   let last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;     // 止めている間も last は進める
     let wallOff = false;
     if (portrait.matches) { renderer.render(scene, camera); return; }
+    if (G.phase === 'title') { camGo(camIntro(0), dt, null); roomSync(G.S, 0); peopleSync(G.S, 0); camApply(0); renderer.render(scene, camera); return; }
     G.time += dt;
     const S = G.S;
 

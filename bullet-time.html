@@ -59,6 +59,12 @@
   #intro.on{opacity:1}
   #intro h2{font-size:calc(var(--u)*9);letter-spacing:.2em}
   #intro p{margin-top:8px;font-size:calc(var(--u)*3.4);letter-spacing:.15em;opacity:.8}
+  #title{position:absolute;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:rgba(3,5,8,.55);text-shadow:0 2px 14px #000;cursor:pointer}
+  #title.on{display:flex}
+  #title h1{font-size:calc(var(--u)*10);letter-spacing:.12em;text-indent:.12em;white-space:nowrap;color:var(--ink);line-height:1.1}
+  #title p{margin-top:calc(var(--u)*3);font-size:calc(var(--u)*3.6);letter-spacing:.15em;opacity:.8}
+  #title .go{margin-top:calc(var(--u)*30);font-size:calc(var(--u)*5);font-weight:700;letter-spacing:.2em;text-indent:.2em;color:var(--gold);animation:tpulse 1.4s ease-in-out infinite}
+  @keyframes tpulse{0%,100%{opacity:.35}50%{opacity:1}}
   #pop{position:absolute;left:50%;top:20%;transform:translate(-50%,-50%);z-index:7;font-size:calc(var(--u)*11);font-weight:700;letter-spacing:.1em;
     opacity:0;pointer-events:none;text-shadow:0 2px 16px #000;white-space:nowrap}
   #pop.on{opacity:1}
@@ -114,6 +120,7 @@
   <div id="hint">← → ↑ ↓ で選ぶ　Enter / Space で撃つ　R でやり直し</div>
   <div id="bar"><button id="retryBtn" class="off">やり直し</button><button id="fireBtn">撃つ</button></div>
   <div id="intro"><h2>状況を見る</h2><p>タップかキーで飛ばす</p></div>
+  <div id="title"><h1>BULLET TIME</h1><p>銃弾になって、未来を変えろ</p><div class="go">タップしてはじめる</div></div>
   <div id="pop"></div>
   <div id="step"></div>
   <div id="ff">タップで早送り</div>
@@ -762,9 +769,13 @@ function sndInit() {
   } catch (e) { SND.ctx = null; }                         // 音が出せない環境では鳴らさないだけ
 }
 
+function sndResume() { if (SND.ctx && SND.ctx.state !== 'running') { try { SND.ctx.resume(); } catch (e) {} } }
+addEventListener('visibilitychange', () => { if (!document.hidden) sndResume(); });
+
 // 音程のある音（freq から to へ下がる・上がる）
 function sndTone(freq, to, dur, type, vol, delay) {
   if (!SND.ctx || SND.mute) return;
+  sndResume();
   const t0 = SND.ctx.currentTime + (delay || 0), o = SND.ctx.createOscillator(), g = SND.ctx.createGain();
   o.type = type; o.frequency.setValueAtTime(freq, t0);
   o.frequency.exponentialRampToValueAtTime(Math.max(20, to), t0 + dur);
@@ -777,6 +788,7 @@ function sndTone(freq, to, dur, type, vol, delay) {
 // ざらついた音（フィルタの周波数を from から to へ動かす）
 function sndNoise(dur, vol, filter, from, to, delay) {
   if (!SND.ctx || SND.mute) return;
+  sndResume();
   const t0 = SND.ctx.currentTime + (delay || 0), s = SND.ctx.createBufferSource(), f = SND.ctx.createBiquadFilter(), g = SND.ctx.createGain();
   s.buffer = SND.noise;
   f.type = filter; f.frequency.setValueAtTime(from, t0);
@@ -1608,7 +1620,7 @@ function hudStep(text, hold) {
   fit();
   CAM.cam = camera;
 
-  const G = { phase: 'intro', S: null, sel: 'A', introDone: false, glassBroken: false, found: {}, nFound: 0, t: 0, time: 0, ts: 1, acc: 0,
+  const G = { phase: 'title', S: null, sel: 'A', introDone: false, glassBroken: false, found: {}, nFound: 0, t: 0, time: 0, ts: 1, acc: 0,
     capQ: [], capCur: null, pendingResult: false, capShownAt: 0, capMin: 0, curve: null, f1: null, grade: 0, lastRetry: 0, camDir: { x: 0, y: 0, z: -1 }, hero: false };
   window.GAME = G;                                           // 確認用（テストプレイで局面を直接動かす）
 
@@ -1633,6 +1645,10 @@ function hudStep(text, hold) {
     G.S = newSim(STAGE1, Math.random);
     roomReset(); G.acc = 0; G.hero = false;
     startFly1();
+  }
+  function startGame() {                                     // 最初のタップ：音を先に有効にしてからイントロへ（これがないとイントロの音が鳴らない）
+    sndInit(); sndResume(); sndConfirm(); tryLandscape();
+    $('title').classList.remove('on'); startIntro();
   }
   function startIntro() {
     G.phase = 'intro'; G.t = 0; G.S = newSim(STAGE1, Math.random); roomReset(); hudIntro(true); hudRetryBtn(false);
@@ -1771,12 +1787,12 @@ function hudStep(text, hold) {
     if (n !== G.sel) { G.sel = n; sndTick(); }
   }
   function doRetry() {
-    if (G.phase === 'intro') return;
+    if (G.phase === 'intro' || G.phase === 'title') return;
     const now = performance.now(); if (now - G.lastRetry < 200) return; G.lastRetry = now;
     startRound();
   }
   initInput({
-    any() { sndInit(); tryLandscape(); if (G.phase === 'intro' && !portrait.matches) endIntro(); else if (G.phase === 'sim' && !G.fast) { G.fast = true; G.capQ = []; hudStep(null); } },
+    any() { if (G.phase === 'title') { if (!portrait.matches) startGame(); return; } sndInit(); tryLandscape(); if (G.phase === 'intro' && !portrait.matches) endIntro(); else if (G.phase === 'sim' && !G.fast) { G.fast = true; G.capQ = []; hudStep(null); } },
     dir: doDir,
     confirm() { if (G.phase === 'freeze') fire(); else if (G.phase === 'result') doRetry(); },
     retry: doRetry,
@@ -1805,13 +1821,14 @@ function hudStep(text, hold) {
   }
 
   // ---------- 毎フレーム ----------
-  startIntro();
+  $('title').classList.add('on'); G.t = 0; G.S = newSim(STAGE1, Math.random); roomReset(); hudRetryBtn(false);
   let last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;     // 止めている間も last は進める
     let wallOff = false;
     if (portrait.matches) { renderer.render(scene, camera); return; }
+    if (G.phase === 'title') { camGo(camIntro(0), dt, null); roomSync(G.S, 0); peopleSync(G.S, 0); camApply(0); renderer.render(scene, camera); return; }
     G.time += dt;
     const S = G.S;
 
