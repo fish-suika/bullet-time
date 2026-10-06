@@ -5,126 +5,125 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>BULLET TIME</title>
 <style>
-  :root{--ink:#f2efe8;--gold:#ffd04a;--ice:#8fc8ff;--red:#e0483c;--jp:"Hiragino Kaku Gothic ProN","Yu Gothic","YuGothic","Meiryo","Noto Sans JP",sans-serif}
+  /* --u は「枠の幅の 1/100」（JS が入れる）。文字や余白をこれで決めるので、スマホ(375)でも PC の枠(540)でも同じ見た目の比になる */
+  :root{--u:3.75px;--ink:#f2efe8;--gold:#ffd04a;--ice:#8fc8ff;--red:#e0483c;--jp:"Hiragino Kaku Gothic ProN","Yu Gothic","YuGothic","Meiryo","Noto Sans JP",sans-serif}
   *{margin:0;padding:0;box-sizing:border-box}
-  html,body{width:100%;height:100%;overflow:hidden;background:#05070a;color:var(--ink);font-family:var(--jp);
+  html,body{width:100%;height:100%;overflow:hidden;background:#020305;color:var(--ink);font-family:var(--jp);
     touch-action:none;user-select:none;-webkit-user-select:none}
-  canvas{display:block;width:100%;height:100%}
   button{font-family:var(--jp)}
 
-  /* ---- 画面の上：目的・未来の数・やり直し ---- */
-  #obj{position:fixed;left:16px;top:12px;z-index:6;pointer-events:none;text-shadow:0 1px 8px #000}
-  #obj b{display:block;font-size:clamp(15px,2.4vw,20px);letter-spacing:.12em}
-  #obj small{display:block;margin-top:2px;font-size:12px;opacity:.75;letter-spacing:.08em}
-  #topR{position:fixed;right:16px;top:12px;z-index:7;display:flex;align-items:center;gap:10px}
-  #fut{padding:5px 14px;border-radius:18px;background:rgba(8,10,14,.6);font-size:15px;letter-spacing:.1em;pointer-events:none}
-  #fut b{font-size:20px;color:var(--gold);font-variant-numeric:tabular-nums}
-  #retryBtn{padding:5px 14px;border:1px solid rgba(255,255,255,.5);border-radius:18px;background:rgba(8,10,14,.6);color:var(--ink);
-    font-size:13px;letter-spacing:.08em;cursor:pointer;touch-action:manipulation}
-  #retryBtn.off{display:none}
+  /* ---- 縦長 9:16 の枠。PC では高さいっぱいの 9:16 を中央に置き、左右は暗い帯。スマホ(縦)では画面いっぱい ---- */
+  #stage{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:min(100vw,56.25vh);overflow:hidden;background:#05070a;
+    box-shadow:0 0 0 1px rgba(255,255,255,.06),0 0 60px rgba(0,0,0,.8)}
+  #stage canvas{display:block;width:100%;height:100%}
 
-  /* ---- 分岐点：青白い色合いと、印（輪） ---- */
-  #tint{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .25s;
-    background:radial-gradient(ellipse at center,rgba(90,150,255,.0) 45%,rgba(20,50,130,.38) 100%)}
-  #tint.on{opacity:1}
-  #markers{position:fixed;inset:0;z-index:8;pointer-events:none}
-  .mk{position:absolute;display:none;width:76px;height:76px;margin:-38px 0 0 -38px;cursor:pointer;pointer-events:auto;touch-action:manipulation}
-  .mk.on{display:block}
-  .mk i{position:absolute;left:10px;top:10px;width:56px;height:56px;border-radius:50%;border:3px solid rgba(255,255,255,.85);
-    background:rgba(255,255,255,.08);box-shadow:0 0 12px rgba(0,0,0,.6),inset 0 0 8px rgba(0,0,0,.4);transition:transform .12s}
-  .mk span{position:absolute;left:50%;top:68px;transform:translateX(-50%);white-space:nowrap;font-size:13px;font-weight:700;letter-spacing:.12em;
-    text-shadow:0 1px 6px #000,0 0 3px #000}
-  .mk.sel i{border-color:var(--gold);background:rgba(255,208,74,.16);transform:scale(1.18);animation:pulse .9s ease-in-out infinite}
-  .mk.sel span{color:var(--gold);font-size:15px}
-  @keyframes pulse{0%,100%{box-shadow:0 0 12px rgba(255,208,74,.5),inset 0 0 8px rgba(0,0,0,.4)}50%{box-shadow:0 0 26px rgba(255,208,74,.95),inset 0 0 8px rgba(0,0,0,.4)}}
-  #fireBtn{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:9;display:none;
-    padding:12px 34px;border:2px solid var(--gold);border-radius:30px;background:rgba(60,44,10,.88);color:var(--gold);font-size:20px;font-weight:700;
-    letter-spacing:.3em;cursor:pointer;touch-action:manipulation}
+  /* ---- 上：目的・未来の数 ---- */
+  #obj{position:absolute;left:calc(var(--u)*4);top:calc(env(safe-area-inset-top) + var(--u)*3.5);z-index:6;pointer-events:none;text-shadow:0 1px 8px #000}
+  #obj b{display:block;font-size:calc(var(--u)*4.2);letter-spacing:.1em}
+  #obj small{display:block;margin-top:2px;font-size:calc(var(--u)*3.1);opacity:.75;letter-spacing:.06em}
+  #topR{position:absolute;right:calc(var(--u)*4);top:calc(env(safe-area-inset-top) + var(--u)*3.5);z-index:7;pointer-events:none}
+  #fut{padding:calc(var(--u)*1.2) calc(var(--u)*3.4);border-radius:calc(var(--u)*5);background:rgba(8,10,14,.6);font-size:calc(var(--u)*3.6);letter-spacing:.1em;white-space:nowrap}
+  #fut b{font-size:calc(var(--u)*5);color:var(--gold);font-variant-numeric:tabular-nums}
+
+  /* ---- 下：やり直し・撃つ（親指が届く位置） ---- */
+  #bar{position:absolute;left:calc(var(--u)*4);right:calc(var(--u)*4);bottom:calc(env(safe-area-inset-bottom) + var(--u)*4);z-index:9;display:flex;gap:calc(var(--u)*3);pointer-events:none}
+  #bar button{pointer-events:auto;touch-action:manipulation;cursor:pointer}
+  #retryBtn{flex:none;padding:0 calc(var(--u)*4.5);height:calc(var(--u)*13);border:1px solid rgba(255,255,255,.5);border-radius:calc(var(--u)*7);
+    background:rgba(8,10,14,.7);color:var(--ink);font-size:calc(var(--u)*3.6);letter-spacing:.06em}
+  #retryBtn.off{display:none}
+  #fireBtn{flex:1;display:none;height:calc(var(--u)*13);border:2px solid var(--gold);border-radius:calc(var(--u)*7);background:rgba(60,44,10,.9);color:var(--gold);
+    font-size:calc(var(--u)*5.6);font-weight:700;letter-spacing:.4em;text-indent:.4em}
   #fireBtn.on{display:block}
-  #hint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:6;font-size:13px;letter-spacing:.1em;opacity:0;pointer-events:none;
-    text-shadow:0 1px 6px #000;transition:opacity .2s;white-space:nowrap}
+  #hint{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + var(--u)*21);z-index:6;text-align:center;font-size:calc(var(--u)*3);letter-spacing:.06em;
+    opacity:0;pointer-events:none;text-shadow:0 1px 6px #000;transition:opacity .2s}
   #hint.on{opacity:.85}
   body.touch #hint{display:none}
 
+  /* ---- 分岐点：青白い色合いと、印（輪） ---- */
+  #tint{position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .25s;
+    background:radial-gradient(ellipse at center,rgba(90,150,255,0) 45%,rgba(20,50,130,.38) 100%)}
+  #tint.on{opacity:1}
+  #markers{position:absolute;inset:0;z-index:8;pointer-events:none}
+  .mk{position:absolute;display:none;width:calc(var(--u)*17);height:calc(var(--u)*17);margin:calc(var(--u)*-8.5) 0 0 calc(var(--u)*-8.5);cursor:pointer;pointer-events:auto;touch-action:manipulation}
+  .mk.on{display:block}
+  .mk i{position:absolute;left:calc(var(--u)*2.5);top:calc(var(--u)*2.5);width:calc(var(--u)*12);height:calc(var(--u)*12);border-radius:50%;border:3px solid rgba(255,255,255,.85);
+    background:rgba(255,255,255,.08);box-shadow:0 0 12px rgba(0,0,0,.6),inset 0 0 8px rgba(0,0,0,.4);transition:transform .12s}
+  .mk span{position:absolute;left:50%;top:calc(var(--u)*15);transform:translateX(-50%);white-space:nowrap;font-size:calc(var(--u)*3.2);font-weight:700;letter-spacing:.12em;
+    text-shadow:0 1px 6px #000,0 0 3px #000}
+  .mk.sel i{border-color:var(--gold);background:rgba(255,208,74,.16);transform:scale(1.18);animation:pulse .9s ease-in-out infinite}
+  .mk.sel span{color:var(--gold);font-size:calc(var(--u)*3.8)}
+  @keyframes pulse{0%,100%{box-shadow:0 0 12px rgba(255,208,74,.5),inset 0 0 8px rgba(0,0,0,.4)}50%{box-shadow:0 0 26px rgba(255,208,74,.95),inset 0 0 8px rgba(0,0,0,.4)}}
+
   /* ---- 状況を見る・お知らせ ---- */
-  #intro{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);z-index:7;text-align:center;opacity:0;pointer-events:none;transition:opacity .3s;text-shadow:0 2px 14px #000}
+  #intro{position:absolute;left:50%;top:24%;transform:translate(-50%,-50%);z-index:7;text-align:center;opacity:0;pointer-events:none;transition:opacity .3s;text-shadow:0 2px 14px #000;white-space:nowrap}
   #intro.on{opacity:1}
-  #intro h2{font-size:clamp(24px,5vw,44px);letter-spacing:.2em}
-  #intro p{margin-top:8px;font-size:14px;letter-spacing:.15em;opacity:.8}
-  #pop{position:fixed;left:50%;top:26%;transform:translate(-50%,-50%);z-index:7;font-size:clamp(26px,6vw,52px);font-weight:700;letter-spacing:.1em;
+  #intro h2{font-size:calc(var(--u)*9);letter-spacing:.2em}
+  #intro p{margin-top:8px;font-size:calc(var(--u)*3.4);letter-spacing:.15em;opacity:.8}
+  #pop{position:absolute;left:50%;top:20%;transform:translate(-50%,-50%);z-index:7;font-size:calc(var(--u)*11);font-weight:700;letter-spacing:.1em;
     opacity:0;pointer-events:none;text-shadow:0 2px 16px #000;white-space:nowrap}
   #pop.on{opacity:1}
-  #flash{position:fixed;inset:0;z-index:4;background:#fff;opacity:0;pointer-events:none}
-  #hurt{position:fixed;inset:0;z-index:4;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 30%,rgba(190,20,10,.7) 100%);opacity:0;pointer-events:none}
+  #flash{position:absolute;inset:0;z-index:4;background:#fff;opacity:0;pointer-events:none}
+  #hurt{position:absolute;inset:0;z-index:4;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 30%,rgba(190,20,10,.7) 100%);opacity:0;pointer-events:none}
 
-  /* ---- 結果 ---- */
-  #result{position:fixed;inset:0;z-index:12;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;text-align:center;
-    background:rgba(6,8,12,.62)}
+  /* ---- 結果：上に判定、下にログとボタン（真ん中は連鎖の絵を見せる） ---- */
+  #result{position:absolute;inset:0;z-index:12;display:none;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;
+    padding:calc(env(safe-area-inset-top) + var(--u)*16) calc(var(--u)*4) calc(env(safe-area-inset-bottom) + var(--u)*5);
+    background:linear-gradient(to bottom,rgba(6,8,12,.7) 0%,rgba(6,8,12,.1) 30%,rgba(6,8,12,.1) 45%,rgba(6,8,12,.82) 70%)}
   #result.on{display:flex}
-  #result h2{font-size:clamp(34px,8vw,64px);letter-spacing:.12em}
+  #stage.res #obj,#stage.res #topR{opacity:0}
+  #result h2{font-size:calc(var(--u)*13);letter-spacing:.1em;line-height:1.1}
   #result h2.ok{color:var(--gold)} #result h2.ng{color:var(--red)}
-  #result .sub{font-size:clamp(16px,3vw,22px);letter-spacing:.2em;opacity:.9}
-  #chain{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 8px;max-width:min(860px,94vw);margin-top:6px;font-size:clamp(14px,2.3vw,19px)}
-  #chain span{padding:4px 12px;border-radius:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);white-space:nowrap}
+  #result .sub{margin-top:calc(var(--u)*1.5);font-size:calc(var(--u)*4.4);letter-spacing:.2em;opacity:.9}
+  #result .low{width:100%;display:flex;flex-direction:column;align-items:center;gap:calc(var(--u)*2.4)}
+  #chain{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:calc(var(--u)*1.6) calc(var(--u)*1.2);font-size:calc(var(--u)*3.6)}
+  #chain span{padding:calc(var(--u)*.8) calc(var(--u)*3);border-radius:calc(var(--u)*4);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);white-space:nowrap}
   #chain span.last{background:rgba(255,208,74,.2);border-color:var(--gold)}
   #chain span.last.ng{background:rgba(224,72,60,.22);border-color:var(--red)}
-  #chain b{opacity:.55;font-weight:400}
-  #resFut{font-size:clamp(16px,2.6vw,20px);letter-spacing:.15em}
+  #chain b{line-height:1;font-size:calc(var(--u)*3.4);opacity:.55;font-weight:400}
+  #resFut{font-size:calc(var(--u)*4);letter-spacing:.15em}
   #resFut b{color:var(--gold);font-size:1.4em}
-  #againBtn{margin-top:6px;font-size:18px;font-weight:700;letter-spacing:.2em;color:#fff;background:#c8402f;border:0;border-radius:28px;padding:11px 34px;cursor:pointer;touch-action:manipulation}
-  #result small{font-size:12px;opacity:.6;letter-spacing:.1em}
+  #againBtn{width:100%;height:calc(var(--u)*13);font-size:calc(var(--u)*5);font-weight:700;letter-spacing:.2em;color:#fff;background:#c8402f;border:0;border-radius:calc(var(--u)*7);cursor:pointer;touch-action:manipulation}
+  #result small{font-size:calc(var(--u)*2.8);opacity:.6;letter-spacing:.08em}
 
-  /* ---- スマホが縦向きのときの案内（縦では操作しにくいので、横にしてもらう） ---- */
+  /* ---- スマホが横向きのときの案内（縦専用なので、縦にしてもらう） ---- */
   #rotate{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;
     gap:22px;padding:24px;text-align:center;background:#0b0e14}
   #rotate .phone{width:46px;height:80px;border:4px solid var(--ink);border-radius:9px;position:relative;animation:turn 2.4s ease-in-out infinite}
   #rotate .phone::after{content:"";position:absolute;left:50%;bottom:5px;width:8px;height:8px;margin-left:-4px;border-radius:50%;background:var(--ink)}
-  @keyframes turn{0%,25%{transform:rotate(0)}55%,85%{transform:rotate(-90deg)}100%{transform:rotate(0)}}
+  @keyframes turn{0%,25%{transform:rotate(-90deg)}55%,85%{transform:rotate(0)}100%{transform:rotate(-90deg)}}
   #rotate p{font-size:20px;letter-spacing:.1em;line-height:1.8}
   #rotate small{display:block;font-size:14px;opacity:.75;letter-spacing:.05em}
-  @media (orientation: portrait) and (pointer: coarse){#rotate{display:flex}}
-
-  /* ---- スマホの横画面（高さが低い）：文字を小さく、重ならないように ---- */
-  @media (max-height:500px){
-    #obj{left:10px;top:8px} #obj b{font-size:14px} #obj small{font-size:11px}
-    #topR{right:10px;top:8px;gap:6px} #fut{padding:3px 10px;font-size:13px} #fut b{font-size:16px} #retryBtn{padding:3px 10px;font-size:12px}
-    .mk{width:64px;height:64px;margin:-32px 0 0 -32px}
-    .mk i{left:8px;top:8px;width:48px;height:48px}
-    .mk span{top:58px;font-size:12px} .mk.sel span{font-size:13px}
-    #fireBtn{padding:8px 26px;font-size:17px;bottom:10px;right:14px}
-    #intro{top:36%} #intro h2{font-size:26px} #intro p{font-size:12px}
-    #pop{top:30%;font-size:28px}
-    #result{gap:6px;padding:8px} #result h2{font-size:34px} #result .sub{font-size:15px}
-    #chain{font-size:13px;gap:4px 6px;margin-top:2px} #chain span{padding:2px 9px}
-    #resFut{font-size:14px} #againBtn{padding:7px 26px;font-size:15px;margin-top:2px} #result small{display:none}
-    #hint{bottom:8px;font-size:12px}
-  }
+  @media (orientation: landscape) and (pointer: coarse){#rotate{display:flex}}
 </style>
 </head>
 <body>
-<div id="tint"></div>
-<div id="obj"><b>目的：主人公を助けろ</b><small>3.5 秒後、敵が主人公を撃つ</small></div>
-<div id="topR"><div id="fut">未来 <b id="futN">0</b>/4</div><button id="retryBtn" class="off">やり直し（R）</button></div>
-<div id="markers">
-  <div class="mk" data-id="A"><i></i><span></span></div>
-  <div class="mk" data-id="lamp"><i></i><span></span></div>
-  <div class="mk" data-id="banana"><i></i><span></span></div>
-  <div class="mk" data-id="bottle"><i></i><span></span></div>
+<div id="stage">
+  <div id="tint"></div>
+  <div id="obj"><b>目的：主人公を助けろ</b><small>3.5 秒後、敵が主人公を撃つ</small></div>
+  <div id="topR"><div id="fut">未来 <b id="futN">0</b>/4</div></div>
+  <div id="markers">
+    <div class="mk" data-id="A"><i></i><span></span></div>
+    <div class="mk" data-id="lamp"><i></i><span></span></div>
+    <div class="mk" data-id="banana"><i></i><span></span></div>
+    <div class="mk" data-id="bottle"><i></i><span></span></div>
+  </div>
+  <div id="hint">← → ↑ ↓ で選ぶ　Enter / Space で撃つ　R でやり直し</div>
+  <div id="bar"><button id="retryBtn" class="off">やり直し</button><button id="fireBtn">撃つ</button></div>
+  <div id="intro"><h2>状況を見る</h2><p>タップかキーで飛ばす</p></div>
+  <div id="pop"></div>
+  <div id="flash"></div>
+  <div id="hurt"></div>
+  <div id="result">
+    <div><h2 id="resTitle"></h2><div class="sub" id="resSub"></div></div>
+    <div class="low">
+      <div id="chain"></div>
+      <div id="resFut"></div>
+      <button id="againBtn">もう一度</button>
+      <small>画面をタップでもやり直せます（R キー）</small>
+    </div>
+  </div>
 </div>
-<button id="fireBtn">撃つ</button>
-<div id="hint">← → ↑ ↓ で選ぶ　　Enter / Space で撃つ　　R でやり直し</div>
-<div id="intro"><h2>状況を見る</h2><p>タップかキーで飛ばす</p></div>
-<div id="pop"></div>
-<div id="flash"></div>
-<div id="hurt"></div>
-<div id="result">
-  <h2 id="resTitle"></h2><div class="sub" id="resSub"></div>
-  <div id="chain"></div>
-  <div id="resFut"></div>
-  <button id="againBtn">もう一度（R）</button>
-  <small>画面をタップでもやり直せます</small>
-</div>
-<div id="rotate"><div class="phone"></div><p>横画面にしてください<small>スマホを横向きにすると遊べます</small></p></div>
+<div id="rotate"><div class="phone"></div><p>縦画面にしてください<small>スマホを縦向きにすると遊べます</small></p></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
 <script>
@@ -171,7 +170,7 @@ const CFG = {
   },
   // バナナ
   banana: {
-    landX: 2.9, landZ: -1.3, // 撃たれたバナナが落ちる場所（B の足元）
+    landX: 1.8, landZ: -1.3, // 撃たれたバナナが落ちる場所（B の足元）
     land: 0.3,               // 落下点のばらつき（半径）
     flight: 1.0,             // 飛んでいる時間
     flightJit: 0.06,
@@ -179,7 +178,7 @@ const CFG = {
   // 爆発
   blast: {
     radius: 7.5,             // 吹き飛ぶ範囲
-    lethal: 3.2,             // 主人公に当たる致死範囲（椅子ごと倒れてかわせるのはこの外）
+    lethal: 2.4,             // 主人公に当たる致死範囲（椅子ごと倒れてかわせるのはこの外）
     speed: 9,                // 吹き飛ぶ速さ
     min: 0.35,               // 遠くでも最低これだけの強さ
     up: 0.55,                // 上向きの成分
@@ -196,11 +195,11 @@ const CFG = {
   phys: { gravity: -9.8, friction: 0.5, restitution: 0.15, iterations: 12, bananaFriction: 0.9 },
   // カメラ
   camera: {
-    fov: 62,
-    wide: { x: -0.8, y: 3.7, z: 4.5, lx: 1.2, ly: 0.8, lz: -2.2, fov: 68 },
-    freeze: { x: 2.4, y: 2.3, z: 4.5, lx: -1.0, ly: 1.1, lz: -1.4, fov: 72 },
-    follow: { back: 2.0, up: 0.45, side: 0.7 },
-    near: { back: 0.9, up: 0.2, side: 0.35, fov: 36 },
+    // fov は横の視野角（縦長の画面でも横に同じだけ入るように。縦は画面の比から求める）
+    wide: { x: -1.3, y: 3.7, z: 4.6, lx: 1.0, ly: 0.7, lz: -2.4, fov: 66 },
+    freeze: { x: 0, y: 3.6, z: 4.6, lx: 0, ly: 1.0, lz: -1.2, fov: 62 },
+    follow: { back: 2.0, up: 0.45, side: 0.6, fov: 56 },
+    near: { back: 0.9, up: 0.2, side: 0.3, fov: 30 },
     introSec: 2.5,
   },
   ui: { hintSec: 2.2 },
@@ -212,7 +211,7 @@ const CFG = {
 const STAGE1 = {
   title: '単純な未来',
   goal: '主人公を助けろ',
-  room: { x: 5.5, zBack: -4.8, zFront: 4.8, h: 4.2 },
+  room: { x: 4.2, zBack: -4.8, zFront: 4.8, h: 4.2 },
   window: { x: 0, y: 1.75, w: 1.5, h: 1.1 },        // 手前の壁の窓（ここを割って弾が入る）
   gun: { x: 0, y: 1.75, z: 9.5 },                    // 窓の外の狙撃銃
   branch: { x: 0, y: 1.75, z: 1.8 },                 // 分岐点（時間が止まる場所）
@@ -220,21 +219,21 @@ const STAGE1 = {
   ents: {
     hero:   { kind: 'person', pos: [0, 0.7, -4.15],  half: [0.3, 0.7, 0.3],   mass: 60, yaw: Math.PI },
     A:      { kind: 'person', pos: [0, 0.9, -1.3],   half: [0.28, 0.9, 0.22], mass: 75, yaw: 0 },
-    B:      { kind: 'person', pos: [4.0, 0.9, -2.3], half: [0.28, 0.9, 0.22], mass: 75, yaw: Math.PI * 0.85 },
+    B:      { kind: 'person', pos: [2.6, 0.9, -2.4], half: [0.28, 0.9, 0.22], mass: 75, yaw: Math.PI * 0.85 },
     lamp:   { kind: 'lamp',   pos: [0, 3.0, -2.1],   radius: 0.3, mass: 4 },
-    table:  { kind: 'table',  pos: [-2.8, 0.4, 1.9], half: [1.1, 0.4, 0.5],   mass: 0 },
-    banana: { kind: 'banana', pos: [-1.95, 0.87, 2.05], half: [0.14, 0.04, 0.06], mass: 0.3, yaw: 0.5 },
-    bottle: { kind: 'bottle', pos: [-3.7, 0.95, 1.7], half: [0.045, 0.15, 0.045], mass: 0.6 },
-    crate:  { kind: 'crate',  pos: [4.8, 0.4, -3.2], half: [0.4, 0.4, 0.4],   mass: 25 },
-    cyl:    { kind: 'cyl',    pos: [5.0, 0.65, -4.3], half: [0.17, 0.65, 0.17], mass: 30 },
+    table:  { kind: 'table',  pos: [0, 0.4, 0.6], half: [1.7, 0.4, 0.5],   mass: 0 },
+    banana: { kind: 'banana', pos: [-1.2, 0.87, 0.6], half: [0.14, 0.04, 0.06], mass: 0.3, yaw: 0.5 },
+    bottle: { kind: 'bottle', pos: [1.2, 0.95, 0.6], half: [0.045, 0.15, 0.045], mass: 0.6 },
+    crate:  { kind: 'crate',  pos: [3.2, 0.4, -3.2], half: [0.4, 0.4, 0.4],   mass: 25 },
+    cyl:    { kind: 'cyl',    pos: [3.6, 0.65, -4.4], half: [0.17, 0.65, 0.17], mass: 30 },
   },
   chainTop: 4.2,             // 鎖の上端（天井）
   // 撃てる対象。aim は弾が当たる点
   targets: [
     { id: 'A',      name: '敵A',     aim: { x: 0,     y: 1.3,  z: -1.05 } },
     { id: 'lamp',   name: 'ランプ',  aim: { x: 0,     y: 3.85, z: -2.1 } },
-    { id: 'banana', name: 'バナナ',  aim: { x: -1.95, y: 0.95, z: 2.05 } },
-    { id: 'bottle', name: 'ワイン瓶', aim: { x: -3.7, y: 1.08, z: 1.7 } },
+    { id: 'banana', name: 'バナナ',  aim: { x: -1.2, y: 0.95, z: 0.6 } },
+    { id: 'bottle', name: 'ワイン瓶', aim: { x: 1.2,  y: 1.08, z: 0.6 } },
   ],
 };
 
@@ -779,7 +778,7 @@ function buildRoom(scene) {
     new THREE.MeshStandardMaterial({ color: 0x9fb8d8, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.28 }));
   glass.position.set(W.x, W.y, zf); scene.add(glass); ROOM.glass = glass;
   // 梁・柱・配管（暗い倉庫らしさ）
-  for (let z = -4; z <= 4; z += 2) mkBox(scene, Wd, 0.25, 0.18, darkM, 0, H - 0.12, z);
+  for (let z = -4; z <= 2; z += 2) mkBox(scene, Wd, 0.25, 0.18, darkM, 0, H - 0.12, z);
   for (const sx of [-1, 1]) {
     mkBox(scene, 0.35, H, 0.35, wallM, sx * (R.x - 0.3), H / 2, -4.3);
     mkBox(scene, 0.35, H, 0.35, wallM, sx * (R.x - 0.3), H / 2, 1.5);
@@ -787,11 +786,11 @@ function buildRoom(scene) {
     pipe.rotation.x = Math.PI / 2; pipe.position.set(sx * (R.x - 0.1), 3.5, (zf + zl) / 2); scene.add(pipe);
   }
   // 棚と木箱（奥・左）
-  mkBox(scene, 0.12, 2.4, 0.5, metalM, -4.8, 1.2, -3.2); mkBox(scene, 0.12, 2.4, 0.5, metalM, -3.3, 1.2, -3.2);
-  for (const y of [0.6, 1.3, 2.0]) mkBox(scene, 1.6, 0.06, 0.55, metalM, -4.05, y, -3.2);
-  mkBox(scene, 0.5, 0.4, 0.4, woodM, -4.3, 0.83, -3.2); mkBox(scene, 0.4, 0.3, 0.4, woodM, -3.6, 1.53, -3.2);
-  mkBox(scene, 0.6, 0.6, 0.6, woodM, -4.6, 0.3, -1.6); mkBox(scene, 0.55, 0.5, 0.55, woodM, -3.9, 0.25, -1.5);
-  for (const [x, z] of [[-5.0, 3.6], [-4.3, 3.9], [5.0, 2.8]]) {
+  mkBox(scene, 0.12, 2.4, 0.5, metalM, -3.9, 1.2, -3.2); mkBox(scene, 0.12, 2.4, 0.5, metalM, -2.6, 1.2, -3.2);
+  for (const y of [0.6, 1.3, 2.0]) mkBox(scene, 1.4, 0.06, 0.55, metalM, -3.25, y, -3.2);
+  mkBox(scene, 0.5, 0.4, 0.4, woodM, -3.5, 0.83, -3.2); mkBox(scene, 0.4, 0.3, 0.4, woodM, -2.9, 1.53, -3.2);
+  mkBox(scene, 0.6, 0.6, 0.6, woodM, -3.5, 0.3, -1.6); mkBox(scene, 0.55, 0.5, 0.55, woodM, -2.8, 0.25, -1.5);
+  for (const [x, z] of [[-3.6, 3.6], [-2.9, 3.9], [3.6, 2.8]]) {
     const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 14), stdMat(0x2c3a4a, 0.5, 0.5));
     bar.position.set(x, 0.45, z); bar.castShadow = bar.receiveShadow = true; scene.add(bar);
   }
@@ -1150,12 +1149,10 @@ function fxRings(pos, time, camPos, on) {
     m.material.opacity = (1 - ph) * 0.3;
   });
 }
-// ===== カメラ：見回し・弾への追従・寄り・引き画 =====
-const CAM = { cam: null, p: { x: 0, y: 2, z: 5 }, l: { x: 0, y: 1.5, z: 0 }, fov: 62, baseFov: 62 };
+// ===== カメラ：見回し・弾への追従・寄り・引き画（縦長の画面用） =====
+// fov は「横の視野角」で持つ。縦の視野角は画面の縦横比から求める（縦長でも横に同じだけ入る）
+const CAM = { cam: null, p: { x: 0, y: 2, z: 5 }, l: { x: 0, y: 1.5, z: 0 }, fov: 60 };
 
-function camMinFov(aspect) {                       // 横が狭い画面でも左右の対象が入るように、縦の視野を広げる
-  return 2 * Math.atan(Math.tan(80 * Math.PI / 360) / aspect) * 180 / Math.PI;
-}
 // goal: {x,y,z,lx,ly,lz,fov}。k: 追いつく速さ（1 秒あたり）。k が null なら即座に
 function camGo(goal, dt, k) {
   const f = k === null ? 1 : Math.min(1, dt * k);
@@ -1168,23 +1165,24 @@ function camApply(shake) {
   const C = CAM, c = C.cam, s = shake || 0;
   c.position.set(C.p.x + rr(s * 0.15), C.p.y + rr(s * 0.15), C.p.z + rr(s * 0.15));
   c.lookAt(C.l.x, C.l.y, C.l.z);
-  const fov = Math.max(C.fov, camMinFov(c.aspect));
-  if (Math.abs(c.fov - fov) > 0.01) { c.fov = fov; c.updateProjectionMatrix(); }
+  const v = Math.min(118, 2 * Math.atan(Math.tan(C.fov * Math.PI / 360) / c.aspect) * 180 / Math.PI);
+  if (Math.abs(c.fov - v) > 0.01) { c.fov = v; c.updateProjectionMatrix(); }
 }
-function camWide() { const w = CFG.camera.wide; return { x: w.x, y: w.y, z: w.z, lx: w.lx, ly: w.ly, lz: w.lz, fov: w.fov }; }
-function camFreeze() { const w = CFG.camera.freeze; return { x: w.x, y: w.y, z: w.z, lx: w.lx, ly: w.ly, lz: w.lz, fov: w.fov }; }
+function camShot(w) { return { x: w.x, y: w.y, z: w.z, lx: w.lx, ly: w.ly, lz: w.lz, fov: w.fov }; }
+function camWide() { return camShot(CFG.camera.wide); }
+function camFreeze() { return camShot(CFG.camera.freeze); }
 // 弾の斜め後ろから追う。near（0〜1）が大きいほど近く・狭く
 function camFollow(pos, dir, near) {
   const f = CFG.camera.follow, n = CFG.camera.near, k = near || 0;
   const back = f.back + (n.back - f.back) * k, up = f.up + (n.up - f.up) * k, side = f.side + (n.side - f.side) * k;
   const sx = dir.z, sz = -dir.x, sl = Math.hypot(sx, sz) || 1;       // 進行方向の右
   return { x: pos.x - dir.x * back + sx / sl * side, y: pos.y - dir.y * back + up, z: pos.z - dir.z * back + sz / sl * side,
-    lx: pos.x + dir.x * 1.5, ly: pos.y + dir.y * 1.5, lz: pos.z + dir.z * 1.5, fov: CFG.camera.fov + (n.fov - CFG.camera.fov) * k };
+    lx: pos.x + dir.x * 1.5, ly: pos.y + dir.y * 1.5, lz: pos.z + dir.z * 1.5, fov: CFG.camera.follow.fov + (n.fov - CFG.camera.follow.fov) * k };
 }
-// 状況を見る：部屋をゆっくり見回す（u: 0〜1）
+// 状況を見る：部屋をゆっくり見回す（u: 0〜1）。机 → 敵 A と主人公 → 敵 B の順に縦へ・横へ
 function camIntro(u) {
   const e = u * u * (3 - 2 * u);
-  return { x: -3.6 + e * 6.2, y: 2.9 - e * 0.5, z: 4.3, lx: -0.8 + e * 2.4, ly: 1.3, lz: -2.4, fov: 66 };
+  return { x: -0.8 + e * 1.6, y: 3.4 - e * 0.5, z: 4.5, lx: -1.0 + e * 3.0, ly: 1.1, lz: 0.2 - e * 3.6, fov: 58 };
 }
 // ===== 弾の経路と、分岐点での選択（画面上の向き）。three.js は使わない =====
 const BUL = {
@@ -1287,10 +1285,10 @@ function hudResult(res, found) {
     c.appendChild(s);
   });
   $('resFut').innerHTML = '見つけた未来　<b>' + found + '</b> / ' + CFG.futures;
-  $('result').classList.add('on');
+  $('result').classList.add('on'); $('stage').classList.add('res');
   HUD.shownAt = performance.now();
 }
-function hudHideResult() { $('result').classList.remove('on'); }
+function hudHideResult() { $('result').classList.remove('on'); $('stage').classList.remove('res'); }
 function hudResultOn() { return $('result').classList.contains('on'); }
 // ===== 起動とメインループ =====
 // 流れ：intro（状況を見る・最初の 1 回だけ）→ fly1（窓から分岐点へ）→ freeze（時間が止まる・対象を選ぶ）→ fly2（曲がって命中へ）
@@ -1298,31 +1296,39 @@ function hudResultOn() { return $('result').classList.contains('on'); }
 (function boot() {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
-  document.body.prepend(renderer.domElement);
+  const stage = document.getElementById('stage');
+  stage.prepend(renderer.domElement);
+  const SZ = { w: 1, h: 1 };
+  function fit() {                                           // 枠（縦 9:16）の大きさに描画を合わせ、文字の基準 --u（枠の幅の 1/100）を入れる
+    SZ.w = stage.clientWidth; SZ.h = stage.clientHeight;
+    renderer.setSize(SZ.w, SZ.h);
+    document.documentElement.style.setProperty('--u', SZ.w / 100 + 'px');
+    if (typeof camera !== 'undefined') { camera.aspect = SZ.w / SZ.h; camera.updateProjectionMatrix(); }
+  }
 
   const scene = new THREE.Scene();
   buildRoom(scene); buildProps(scene); buildPeople(scene); initFx(scene);
-  const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.1, 80);
+  const camera = new THREE.PerspectiveCamera(70, 9 / 16, 0.1, 80);
+  fit();
   CAM.cam = camera;
 
   const G = { phase: 'intro', S: null, sel: 'A', introDone: false, glassBroken: false, found: {}, nFound: 0, t: 0, time: 0, ts: 1, acc: 0,
     curve: null, f1: null, grade: 0, lastRetry: 0, camDir: { x: 0, y: 0, z: -1 }, hero: false };
   window.GAME = G;                                           // 確認用（テストプレイで局面を直接動かす）
 
-  const portrait = matchMedia('(orientation: portrait) and (pointer: coarse)');
+  const portrait = matchMedia('(orientation: landscape) and (pointer: coarse)');   // スマホが横向き（縦専用なので止めて案内を出す）
   let touched = false, triedLandscape = false;
   addEventListener('touchstart', () => { touched = true; }, { passive: true });
-  function tryLandscape() {                                  // スマホで最初にタップしたとき、全画面＋横向き固定を試す（できない端末では何もしない）
+  function tryLandscape() {                                  // スマホで最初にタップしたとき、全画面＋縦向き固定を試す（できない端末では何もしない）
     if (triedLandscape || !touched) return; triedLandscape = true;
     const el = document.documentElement;
     if (!el.requestFullscreen) return;
-    el.requestFullscreen().then(() => { if (screen.orientation && screen.orientation.lock) return screen.orientation.lock('landscape'); }).catch(() => {});
+    el.requestFullscreen().then(() => { if (screen.orientation && screen.orientation.lock) return screen.orientation.lock('portrait'); }).catch(() => {});
   }
 
   const B = CFG.bullet, br = STAGE1.branch;
@@ -1381,7 +1387,7 @@ function hudResultOn() { return $('result').classList.contains('on'); }
     handleEvents();
   }
   function showResult() {
-    G.phase = 'result';
+    G.phase = 'result'; hudRetryBtn(false);
     const res = G.S.result;
     hudResult(res, G.nFound);
     sndResult(res.ok);
@@ -1419,7 +1425,7 @@ function hudResultOn() { return $('result').classList.contains('on'); }
     camera.updateMatrixWorld();
     return STAGE1.targets.map(t => {
       const v = new THREE.Vector3(t.aim.x, t.aim.y, t.aim.z).project(camera);
-      return { id: t.id, x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight };
+      return { id: t.id, x: (v.x + 1) / 2 * SZ.w, y: (1 - v.y) / 2 * SZ.h };
     });
   }
   function doDir(dx, dy) {
@@ -1450,14 +1456,14 @@ function hudResultOn() { return $('result').classList.contains('on'); }
   $('againBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); doRetry(); });
   $('result').addEventListener('pointerdown', () => { if (performance.now() - HUD.shownAt > 500) doRetry(); });
 
-  addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+  addEventListener('resize', fit);
 
   // ---------- 色合い（分岐点では冷たい青白い光に） ----------
   const hemiN = new THREE.Color(0x4a5870), hemiF = new THREE.Color(0x7aa4e8), lampN = new THREE.Color(0xffb464), lampF = new THREE.Color(0xa6c4ff);
   function applyGrade(dt) {
     const want = G.phase === 'freeze' ? 1 : G.phase === 'fly2' ? 0.5 : 0;
     G.grade += (want - G.grade) * Math.min(1, dt * 6);
-    ROOM.hemi.color.copy(hemiN).lerp(hemiF, G.grade); ROOM.hemi.intensity = 0.4 + G.grade * 0.2 + (G.S.ents.lamp.broken ? 0.18 : 0);
+    ROOM.hemi.color.copy(hemiN).lerp(hemiF, G.grade); ROOM.hemi.intensity = 0.4 + G.grade * 0.2 + (G.S.ents.lamp.broken ? 0.28 : 0);
     if (ROOM.lampLight.intensity > 0.5) ROOM.lampLight.color.copy(lampN).lerp(lampF, G.grade);
   }
 

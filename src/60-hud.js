@@ -47,8 +47,8 @@ function hudResult(res, found) {
     c.appendChild(s);
   });
   $('resFut').innerHTML = '見つけた未来　<b>' + found + '</b> / ' + CFG.futures;
-  $('result').classList.add('on');
+  $('result').classList.add('on'); $('stage').classList.add('res');
   HUD.shownAt = performance.now();
 }
-function hudHideResult() { $('result').classList.remove('on'); }
+function hudHideResult() { $('result').classList.remove('on'); $('stage').classList.remove('res'); }
 function hudResultOn() { return $('result').classList.contains('on'); }

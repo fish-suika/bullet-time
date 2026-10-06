@@ -88,7 +88,7 @@ function buildRoom(scene) {
     new THREE.MeshStandardMaterial({ color: 0x9fb8d8, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.28 }));
   glass.position.set(W.x, W.y, zf); scene.add(glass); ROOM.glass = glass;
   // 梁・柱・配管（暗い倉庫らしさ）
-  for (let z = -4; z <= 4; z += 2) mkBox(scene, Wd, 0.25, 0.18, darkM, 0, H - 0.12, z);
+  for (let z = -4; z <= 2; z += 2) mkBox(scene, Wd, 0.25, 0.18, darkM, 0, H - 0.12, z);
   for (const sx of [-1, 1]) {
     mkBox(scene, 0.35, H, 0.35, wallM, sx * (R.x - 0.3), H / 2, -4.3);
     mkBox(scene, 0.35, H, 0.35, wallM, sx * (R.x - 0.3), H / 2, 1.5);
@@ -96,11 +96,11 @@ function buildRoom(scene) {
     pipe.rotation.x = Math.PI / 2; pipe.position.set(sx * (R.x - 0.1), 3.5, (zf + zl) / 2); scene.add(pipe);
   }
   // 棚と木箱（奥・左）
-  mkBox(scene, 0.12, 2.4, 0.5, metalM, -4.8, 1.2, -3.2); mkBox(scene, 0.12, 2.4, 0.5, metalM, -3.3, 1.2, -3.2);
-  for (const y of [0.6, 1.3, 2.0]) mkBox(scene, 1.6, 0.06, 0.55, metalM, -4.05, y, -3.2);
-  mkBox(scene, 0.5, 0.4, 0.4, woodM, -4.3, 0.83, -3.2); mkBox(scene, 0.4, 0.3, 0.4, woodM, -3.6, 1.53, -3.2);
-  mkBox(scene, 0.6, 0.6, 0.6, woodM, -4.6, 0.3, -1.6); mkBox(scene, 0.55, 0.5, 0.55, woodM, -3.9, 0.25, -1.5);
-  for (const [x, z] of [[-5.0, 3.6], [-4.3, 3.9], [5.0, 2.8]]) {
+  mkBox(scene, 0.12, 2.4, 0.5, metalM, -3.9, 1.2, -3.2); mkBox(scene, 0.12, 2.4, 0.5, metalM, -2.6, 1.2, -3.2);
+  for (const y of [0.6, 1.3, 2.0]) mkBox(scene, 1.4, 0.06, 0.55, metalM, -3.25, y, -3.2);
+  mkBox(scene, 0.5, 0.4, 0.4, woodM, -3.5, 0.83, -3.2); mkBox(scene, 0.4, 0.3, 0.4, woodM, -2.9, 1.53, -3.2);
+  mkBox(scene, 0.6, 0.6, 0.6, woodM, -3.5, 0.3, -1.6); mkBox(scene, 0.55, 0.5, 0.55, woodM, -2.8, 0.25, -1.5);
+  for (const [x, z] of [[-3.6, 3.6], [-2.9, 3.9], [3.6, 2.8]]) {
     const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 14), stdMat(0x2c3a4a, 0.5, 0.5));
     bar.position.set(x, 0.45, z); bar.castShadow = bar.receiveShadow = true; scene.add(bar);
   }

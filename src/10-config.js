@@ -40,7 +40,7 @@ const CFG = {
   },
   // バナナ
   banana: {
-    landX: 2.9, landZ: -1.3, // 撃たれたバナナが落ちる場所（B の足元）
+    landX: 1.8, landZ: -1.3, // 撃たれたバナナが落ちる場所（B の足元）
     land: 0.3,               // 落下点のばらつき（半径）
     flight: 1.0,             // 飛んでいる時間
     flightJit: 0.06,
@@ -48,7 +48,7 @@ const CFG = {
   // 爆発
   blast: {
     radius: 7.5,             // 吹き飛ぶ範囲
-    lethal: 3.2,             // 主人公に当たる致死範囲（椅子ごと倒れてかわせるのはこの外）
+    lethal: 2.4,             // 主人公に当たる致死範囲（椅子ごと倒れてかわせるのはこの外）
     speed: 9,                // 吹き飛ぶ速さ
     min: 0.35,               // 遠くでも最低これだけの強さ
     up: 0.55,                // 上向きの成分
@@ -65,11 +65,11 @@ const CFG = {
   phys: { gravity: -9.8, friction: 0.5, restitution: 0.15, iterations: 12, bananaFriction: 0.9 },
   // カメラ
   camera: {
-    fov: 62,
-    wide: { x: -0.8, y: 3.7, z: 4.5, lx: 1.2, ly: 0.8, lz: -2.2, fov: 68 },
-    freeze: { x: 2.4, y: 2.3, z: 4.5, lx: -1.0, ly: 1.1, lz: -1.4, fov: 72 },
-    follow: { back: 2.0, up: 0.45, side: 0.7 },
-    near: { back: 0.9, up: 0.2, side: 0.35, fov: 36 },
+    // fov は横の視野角（縦長の画面でも横に同じだけ入るように。縦は画面の比から求める）
+    wide: { x: -1.3, y: 3.7, z: 4.6, lx: 1.0, ly: 0.7, lz: -2.4, fov: 66 },
+    freeze: { x: 0, y: 3.6, z: 4.6, lx: 0, ly: 1.0, lz: -1.2, fov: 62 },
+    follow: { back: 2.0, up: 0.45, side: 0.6, fov: 56 },
+    near: { back: 0.9, up: 0.2, side: 0.3, fov: 30 },
     introSec: 2.5,
   },
   ui: { hintSec: 2.2 },

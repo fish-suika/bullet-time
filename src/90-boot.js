@@ -4,31 +4,39 @@
 (function boot() {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
-  document.body.prepend(renderer.domElement);
+  const stage = document.getElementById('stage');
+  stage.prepend(renderer.domElement);
+  const SZ = { w: 1, h: 1 };
+  function fit() {                                           // 枠（縦 9:16）の大きさに描画を合わせ、文字の基準 --u（枠の幅の 1/100）を入れる
+    SZ.w = stage.clientWidth; SZ.h = stage.clientHeight;
+    renderer.setSize(SZ.w, SZ.h);
+    document.documentElement.style.setProperty('--u', SZ.w / 100 + 'px');
+    if (typeof camera !== 'undefined') { camera.aspect = SZ.w / SZ.h; camera.updateProjectionMatrix(); }
+  }
 
   const scene = new THREE.Scene();
   buildRoom(scene); buildProps(scene); buildPeople(scene); initFx(scene);
-  const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.1, 80);
+  const camera = new THREE.PerspectiveCamera(70, 9 / 16, 0.1, 80);
+  fit();
   CAM.cam = camera;
 
   const G = { phase: 'intro', S: null, sel: 'A', introDone: false, glassBroken: false, found: {}, nFound: 0, t: 0, time: 0, ts: 1, acc: 0,
     curve: null, f1: null, grade: 0, lastRetry: 0, camDir: { x: 0, y: 0, z: -1 }, hero: false };
   window.GAME = G;                                           // 確認用（テストプレイで局面を直接動かす）
 
-  const portrait = matchMedia('(orientation: portrait) and (pointer: coarse)');
+  const portrait = matchMedia('(orientation: landscape) and (pointer: coarse)');   // スマホが横向き（縦専用なので止めて案内を出す）
   let touched = false, triedLandscape = false;
   addEventListener('touchstart', () => { touched = true; }, { passive: true });
-  function tryLandscape() {                                  // スマホで最初にタップしたとき、全画面＋横向き固定を試す（できない端末では何もしない）
+  function tryLandscape() {                                  // スマホで最初にタップしたとき、全画面＋縦向き固定を試す（できない端末では何もしない）
     if (triedLandscape || !touched) return; triedLandscape = true;
     const el = document.documentElement;
     if (!el.requestFullscreen) return;
-    el.requestFullscreen().then(() => { if (screen.orientation && screen.orientation.lock) return screen.orientation.lock('landscape'); }).catch(() => {});
+    el.requestFullscreen().then(() => { if (screen.orientation && screen.orientation.lock) return screen.orientation.lock('portrait'); }).catch(() => {});
   }
 
   const B = CFG.bullet, br = STAGE1.branch;
@@ -87,7 +95,7 @@
     handleEvents();
   }
   function showResult() {
-    G.phase = 'result';
+    G.phase = 'result'; hudRetryBtn(false);
     const res = G.S.result;
     hudResult(res, G.nFound);
     sndResult(res.ok);
@@ -125,7 +133,7 @@
     camera.updateMatrixWorld();
     return STAGE1.targets.map(t => {
       const v = new THREE.Vector3(t.aim.x, t.aim.y, t.aim.z).project(camera);
-      return { id: t.id, x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight };
+      return { id: t.id, x: (v.x + 1) / 2 * SZ.w, y: (1 - v.y) / 2 * SZ.h };
     });
   }
   function doDir(dx, dy) {
@@ -156,14 +164,14 @@
   $('againBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); doRetry(); });
   $('result').addEventListener('pointerdown', () => { if (performance.now() - HUD.shownAt > 500) doRetry(); });
 
-  addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+  addEventListener('resize', fit);
 
   // ---------- 色合い（分岐点では冷たい青白い光に） ----------
   const hemiN = new THREE.Color(0x4a5870), hemiF = new THREE.Color(0x7aa4e8), lampN = new THREE.Color(0xffb464), lampF = new THREE.Color(0xa6c4ff);
   function applyGrade(dt) {
     const want = G.phase === 'freeze' ? 1 : G.phase === 'fly2' ? 0.5 : 0;
     G.grade += (want - G.grade) * Math.min(1, dt * 6);
-    ROOM.hemi.color.copy(hemiN).lerp(hemiF, G.grade); ROOM.hemi.intensity = 0.4 + G.grade * 0.2 + (G.S.ents.lamp.broken ? 0.18 : 0);
+    ROOM.hemi.color.copy(hemiN).lerp(hemiF, G.grade); ROOM.hemi.intensity = 0.4 + G.grade * 0.2 + (G.S.ents.lamp.broken ? 0.28 : 0);
     if (ROOM.lampLight.intensity > 0.5) ROOM.lampLight.color.copy(lampN).lerp(lampF, G.grade);
   }
 
