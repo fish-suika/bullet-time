@@ -55,11 +55,11 @@ function hudResultOn() { return $('result').classList.contains('on'); }
 
 // 連鎖の「いま」の字幕（ログと同じ文）。次のステップが来たら入れ替わり、しばらくしたら消える
 let __stepTimer = 0;
-function hudStep(text) {
+function hudStep(text, hold) {
   const el = $('step');
   clearTimeout(__stepTimer);
   if (!text) { el.classList.remove('on'); return; }
   el.classList.remove('on'); void el.offsetWidth;            // 入れ替わりの動きをやり直す
   el.textContent = text; el.classList.add('on');
-  __stepTimer = setTimeout(() => el.classList.remove('on'), CFG.beat.capHold ? CFG.beat.capHold * 1000 : 2600);
+  __stepTimer = setTimeout(() => el.classList.remove('on'), (hold || 2.6) * 1000);
 }

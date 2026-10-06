@@ -20,11 +20,12 @@ function newSim(stage, rng) {
 
 function rnd(S, a, b) { return a + (b - a) * S.rng(); }
 // ステップごとにカメラが見る物（ログのキー → 物の名前）
-const STEP_FOCUS = { aDown: 'A', gunSlide: 'gun', stoop: 'B', butt: 'shelf', paint: 'B', blind: 'B', heroHit: 'hero', allMiss: 'hero', ext: 'ext', drumHit: 'drum', bKnock: 'B', flashA: 'flash',
+const STEP_FOCUS2 = { flashA: 'flash', aTurn: 'B', bLit: 'A', shootout: 'B', dodge: 'B', paint: 'shelf' };   // 輪を付けるもう 1 つの物
+const STEP_FOCUS = { aDown: 'A', gunSlide: 'gun', stoop: 'B', butt: 'shelf', paint: 'B', blind: 'B', heroHit: 'hero', allMiss: 'hero', ext: 'ext', drumHit: 'drum', bKnock: 'B', flashA: 'A',
   dazzle: 'A', sprinkler: 'sprk', slipLoop: 'B', duck: 'duck', aTurn: 'A', bLit: 'B', shootout: 'A', bothDown: 'B', cylShot: 'cyl', rocket: 'cyl', dodge: 'A' };
 function pushLog(S, key, text) {
   if (S.logKeys[key]) return; S.logKeys[key] = 1; S.log.push({ key, text, t: S.t });
-  if (key !== 'target' && key !== 'end') S.events.push({ type: 'step', key, text, focus: STEP_FOCUS[key] || null });   // 画面の字幕・見せ場の合図（本物の出来事から出る）
+  if (key !== 'target' && key !== 'end') S.events.push({ type: 'step', key, text, focus: STEP_FOCUS[key] || null, focus2: STEP_FOCUS2[key] || null });   // 画面の字幕・見せ場の合図（本物の出来事から出る）
 }
 function emit(S, ev) { S.events.push(ev); }
 function posOf(e) { const p = e.body.position; return { x: p.x, y: p.y, z: p.z }; }
@@ -180,7 +181,8 @@ function rocketUpdate(S) {
   }
   const b = e.body, v = b.velocity, sp = Math.hypot(v.x, v.y, v.z), t = S.t - R.t0;
   let dx = sp > 0.5 ? v.x / sp : C.launch.x, dy = sp > 0.5 ? v.y / sp : C.launch.y, dz = sp > 0.5 ? v.z / sp : C.launch.z;
-  const h = posOf(S.ents.hero), p = posOf(e), hl = dist3(h, p) || 1, w = clamp((t - C.steerFrom) / C.steerRamp, 0, 1);
+  const h = posOf(S.ents.hero), p = posOf(e); h.y += 0.3;   // 狙いは主人公の胸の高さ（椅子ではなく体）
+  const hl = dist3(h, p) || 1, w = clamp((t - C.steerFrom) / C.steerRamp, 0, 1);
   dx = dx * (1 - w) + (h.x - p.x) / hl * w; dy = dy * (1 - w) + (h.y - p.y) / hl * w; dz = dz * (1 - w) + (h.z - p.z) / hl * w;
   const l = Math.hypot(dx, dy, dz) || 1;
   b.force.x += dx / l * C.thrust; b.force.y += dy / l * C.thrust + b.mass * 9.8 * 0.95; b.force.z += dz / l * C.thrust;   // 向きに噴射しつつ、ほぼ無重力で飛ぶ
@@ -188,7 +190,7 @@ function rocketUpdate(S) {
   if (sp > C.maxSpeed) { v.x *= C.maxSpeed / sp; v.y *= C.maxSpeed / sp; v.z *= C.maxSpeed / sp; }
   if (sp > 0.5) { const n = new CANNON.Vec3(v.x / sp, v.y / sp, v.z / sp); b.quaternion.setFromVectors(new CANNON.Vec3(0, 1, 0), n); }   // 機首は進む向き
   b.angularVelocity.set(0, 0, 0);
-  if (sp > C.hitSpeed && dist3(h, p) < 0.62) killHero(S, 'cyl', '主人公の椅子に直撃', v);
+  if (sp > C.hitSpeed && dist3(h, p) < 0.62) killHero(S, 'cyl', '主人公に直撃', v);
   const near = [S.ents.A, S.ents.B].some(x => dist3(posOf(x), p) < C.dodgeDist);
   for (const X of [S.A, S.B]) {                                // ロケットが近づいたら、敵 2 人とも伏せてよける
     const ex = S.ents[X === S.A ? 'A' : 'B'];
@@ -214,7 +216,7 @@ function killHero(S, who, text, dirv) {
   releaseEnt(h);
   h.body.velocity.set((dirv.x || 0) * 0.5, 1.5, (dirv.z || 0) * 0.5);
   h.body.angularVelocity.set((dirv.z || 0) * 0.5, 0, -(dirv.x || 0) * 0.5);
-  emit(S, { type: 'heroHit', point: posOf(h) });
+  emit(S, { type: 'heroHit', point: posOf(h), who });
 }
 
 function processCollisions(S) {
@@ -228,7 +230,7 @@ function processCollisions(S) {
     } else if (e.id === 'drum' && c.other === 'B' && S.B.state !== 'down' && S.ents.B.held && c.speed > CFG.drum.knockSpeed && S.drum.homeUntil > 0) {
       knockB(S);
     } else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on) {
-      killHero(S, 'cyl', '主人公の椅子に直撃', e.body.velocity);
+      killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
     } else if (e.id === 'cyl' && S.rocket.on && (c.other === 'wall' || c.other === 'ceil' || c.other === 'floor') && c.speed > 4) {
       if (!e.lastBounce || S.t - e.lastBounce > 0.15) { e.lastBounce = S.t; emit(S, { type: 'ricochet', pos: posOf(e), speed: c.speed }); }
     } else if (e.id === 'duck' && c.other === 'floor' && c.speed > 1 && !S.duckLanded) {

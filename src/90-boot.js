@@ -20,13 +20,13 @@
   }
 
   const scene = new THREE.Scene();
-  buildRoom(scene); buildProps(scene); buildPeople(scene); initFx(scene); initRain(scene);
+  buildRoom(scene); buildProps(scene); buildPeople(scene); initFx(scene); initRain(scene); initHighlight(scene);
   const camera = new THREE.PerspectiveCamera(70, 9 / 16, 0.1, 80);
   fit();
   CAM.cam = camera;
 
   const G = { phase: 'intro', S: null, sel: 'A', introDone: false, glassBroken: false, found: {}, nFound: 0, t: 0, time: 0, ts: 1, acc: 0,
-    curve: null, f1: null, grade: 0, lastRetry: 0, camDir: { x: 0, y: 0, z: -1 }, hero: false };
+    capQ: [], capCur: null, pendingResult: false, capShownAt: 0, capMin: 0, curve: null, f1: null, grade: 0, lastRetry: 0, camDir: { x: 0, y: 0, z: -1 }, hero: false };
   window.GAME = G;                                           // 確認用（テストプレイで局面を直接動かす）
 
   const portrait = matchMedia('(orientation: landscape) and (pointer: coarse)');   // スマホが横向き（縦専用なので止めて案内を出す）
@@ -46,7 +46,7 @@
   // ---------- 局面の切り替え ----------
   function startRound() {                                    // 新しい世界を作って、発射直後からやり直す（0.3 秒もかからない）
     hudHideResult(); hudMarkers(null); hudTint(false); hudIntro(false);
-    sndWhooshStop(); sndLoopsStop(); fxClear(); G.fast = false; G.beat = null; G.focus = null; G.focusUntil = 0; G.bounceN = 0; G.beatOk = 0; hudStep(null); $('ff').classList.remove('on');
+    sndWhooshStop(); sndLoopsStop(); fxClear(); G.fast = false; G.beat = null; G.hl = null; G.push = null; G.bounceN = 0; G.beatOk = 0; G.capQ = []; G.capCur = null; G.pendingResult = false; hudStep(null); $('ff').classList.remove('on');
     G.S = newSim(STAGE1, Math.random);
     roomReset(); G.acc = 0; G.hero = false;
     startFly1();
@@ -102,13 +102,40 @@
     sndResult(res.ok);
   }
 
+  // 光る輪：いまの字幕に出てくる物（最大 2 つ）を、字幕が出ている間だけ示す。カメラは動かさない
+  const HL_SIZE = { A: 1.5, B: 1.5, hero: 1.5, shelf: 1.9, drum: 1.0, ext: 0.9, gun: 0.7, flash: 0.7, sprk: 0.9, duck: 0.6, cyl: 1.2 };
+  function hlUpdate() {
+    const hl = G.hl;
+    FX.hl.forEach((m, i) => {
+      const id = hl && !G.push && !G.fast && G.phase === 'sim' && G.time < hl.until ? (i ? hl.b : hl.a) : null;   // 寄っている間は輪を出さない（もう見えているので）
+      if (!id) { m.visible = false; return; }
+      const p = posOf(G.S.ents[id]), age = G.time - hl.t0, tot = hl.until - hl.t0;
+      const fade = Math.min(1, age / 0.15) * (1 - clamp((age - (tot - 0.4)) / 0.4, 0, 1));
+      m.visible = true; m.position.set(p.x, p.y, p.z); m.lookAt(camera.position);
+      m.scale.setScalar((HL_SIZE[id] || 0.9) * (1 + 0.1 * Math.sin(age * 9) + (1 - Math.min(1, age / 0.25)) * 0.5));
+      m.material.opacity = 0.9 * fade;
+    });
+  }
+
   // ---------- 連鎖の 1 ステップ（ログに足されたとき）：字幕・カメラ・見せ場のスロー ----------
-  function stepBeat(ev) {
-    const K = CFG.beat;
-    hudStep(ev.text);
+  function stepBeat(ev) {                                    // ステップが来たら字幕の行列に並べる（出す順番と時間は capTick が決める）
     if (G.fast) return;
-    if (ev.focus) { G.focus = ev.focus; G.focusUntil = G.time + K.camHold; }
-    if (!G.beat && G.time >= (G.beatOk || 0)) { G.beat = { t0: G.time, dur: K.dur, slow: K.slow }; G.beatOk = G.time + K.dur + K.cooldown; }     // 続けて来たステップは、スローを重ねず字幕とカメラだけ
+    G.capQ.push(ev);
+  }
+  // 字幕の行列：いまの字幕が最低限の時間（文字数に応じて）出てから、次を出す。次の字幕が出る瞬間に、そのステップのカメラ・スローを始める（絵と文字をそろえる）。
+  // 行列がたまっている（出来事のほうが字幕より先に進んでいる）間は、見る速さをさらに落として、動きが文字を追い越さないようにする
+  function capTick() {
+    const K = CFG.beat;
+    const ready = !G.capCur || G.time - G.capShownAt >= G.capMin;
+    if (G.capQ.length && ready) {
+      const ev = G.capQ.shift();
+      G.capCur = ev; G.capShownAt = G.time; G.capMin = Math.max(K.capMin0, K.capBase + K.capPer * ev.text.length);
+      hudStep(ev.text, G.capMin + 0.9);
+      if (ev.focus) { G.hl = { a: ev.focus, b: ev.focus2 || null, t0: G.time, until: G.time + Math.min(K.hlDur, G.capMin) }; }          // 光る輪（見る場所）
+      if (ev.focus && K.key[G.S.target] === ev.key) G.push = { t0: G.time, focus: ev.focus };                                    // 山場だけ 1 回寄る
+      if (!G.beat) { G.beat = { t0: G.time, dur: K.dur, slow: K.slow }; G.beatOk = G.time + K.dur + K.cooldown; }
+    }
+    return { backlog: G.capQ.length > 0 && !ready, ready };
   }
 
   // ロケットの跳ね返り 1 回ごとの小さな見せ場（ログのステップではないので、ここで別に作る。回数に上限、近すぎるものは束ねる）
@@ -130,7 +157,7 @@
           FX.shake += 0.25;
           break;
         case 'thud': sndThud(ev.speed); break;
-        case 'heroHit': hudHurt(); FX.shake += 0.5; break;
+        case 'heroHit': hudHurt(); FX.shake += 0.5; if (ev.who === 'cyl') { sndBonk(); hudPop('ゴン！', 0.9); } break;
         // ① 敵 A
         case 'gunDrop': sndThud(4); break;
         case 'shelfBump': sndClang(); FX.shake += 0.2; break;
@@ -149,7 +176,7 @@
         case 'capPop': sndPop(); fxCapPop(ev.pos); FX.shake += 0.3; break;
         case 'rocketStart': break;
         case 'ricochet': sndBonk(); fxBounce(ev.pos); FX.shake += 0.35; bounceBeat(); break;
-        case 'done': showResult(); break;
+        case 'done': G.pendingResult = true; break;                // 字幕を読み終えてから結果へ
       }
     }
   }
@@ -173,7 +200,7 @@
     startRound();
   }
   initInput({
-    any() { sndInit(); tryLandscape(); if (G.phase === 'intro' && !portrait.matches) endIntro(); else if (G.phase === 'sim') G.fast = true; },
+    any() { sndInit(); tryLandscape(); if (G.phase === 'intro' && !portrait.matches) endIntro(); else if (G.phase === 'sim' && !G.fast) { G.fast = true; G.capQ = []; hudStep(null); } },
     dir: doDir,
     confirm() { if (G.phase === 'freeze') fire(); else if (G.phase === 'result') doRetry(); },
     retry: doRetry,
@@ -207,7 +234,7 @@
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;     // 止めている間も last は進める
-    let rcam = false;
+    let wallOff = false;
     if (portrait.matches) { renderer.render(scene, camera); return; }
     G.time += dt;
     const S = G.S;
@@ -265,7 +292,9 @@
           if (age >= bd) G.beat = null;
           else beat = age < ez ? 1 + (bs - 1) * (age / ez) : age > bd - ez ? bs + (1 - bs) * ((age - (bd - ez)) / ez) : bs;
         }
-        scale = G.fast ? K.ffScale : CFG.time.chainScale * beat * (G.S.flags.rocketOn && G.S.hero.alive ? K.rocketScale : 1);
+        const ct = G.fast ? { backlog: false, ready: true } : capTick();
+        scale = G.fast ? K.ffScale : CFG.time.chainScale * beat * (G.S.flags.rocketOn && G.S.hero.alive ? K.rocketScale : 1) * (ct.backlog ? K.backlogScale : 1);
+        if (G.pendingResult && (G.fast || (!G.capQ.length && ct.ready))) { showResult(); return; }
         G.acc += dt * scale; let n = 0;
         while (G.acc >= CFG.time.step && G.S.state === 'running' && n++ < 12) { simStep(G.S, CFG.time.step); G.acc -= CFG.time.step; if (G.S.events.length) handleEvents(); }
         if (G.S.events.length) handleEvents();
@@ -275,28 +304,35 @@
       if (F.extOn && ROOM.extNozzle) { ROOM.views.ext.obj.updateMatrixWorld(true); ROOM.extNozzle.getWorldPosition(__nz); fxSpray(__nz, { x: -X.dirx, y: 0.05, z: -X.dirz }); sndSprayStart(); } else sndLoopStop('spray');
       if (F.rocketOn && ROOM.cylTail) { ROOM.views.cyl.obj.updateMatrixWorld(true); ROOM.cylTail.getWorldPosition(__nz); const cv = G.S.ents.cyl.body.velocity, cs = Math.hypot(cv.x, cv.y, cv.z) || 1; fxJet(__nz, { x: -cv.x / cs, y: -cv.y / cs, z: -cv.z / cs }); sndJetStart(); }
       if (G.phase === 'result') sndLoopStop('jet');
-      // カメラ：ふだんは引き画。ステップが来たら、そのステップの物へ寄って見せる
-      // ロケットの間：手前の壁を消して外から見る。ボンベと「次にぶつかる所」を結ぶ方向へ、ゆっくり目線を寄せる
-      rcam = G.phase === 'sim' && !G.fast && G.S.target === 'cyl' && F.rocketOn && G.S.hero.alive;
-      if (rcam) {
-        const RC = CFG.rocketCam, R = STAGE1.room, ce = G.S.ents.cyl, cp = posOf(ce), v = ce.body.velocity, sp = Math.hypot(v.x, v.y, v.z) || 1;
-        let tt = 6;                                                // 速さの向きに進むと、いちばん先に当たる面までの距離
-        for (const [ax, lo, hi] of [['x', -R.x, R.x], ['y', 0, R.h], ['z', R.zBack, R.zFront]]) {
-          const d = v[ax] / sp; if (Math.abs(d) < 1e-3) continue;
-          const t = ((d > 0 ? hi : lo) - cp[ax]) / d; if (t > 0 && t < tt) tt = t;
+      // カメラの方針：連鎖の間は「安定した引き画」のまま。ステップごとには動かさない（見る場所は光る輪で示す）。
+      // 寄るのは 1 つの未来につき 1 回だけ（CFG.beat.key のステップ）。寄ったらもとの引き画へゆっくり戻る。
+      // ロケットの間（④）は、手前の壁を消して外から部屋全体を見る。ボンベを追う目線の動きはごく小さく。
+      let base = camWide(G.S.target);
+      if (G.S.target === 'cyl' && F.rocketOn) {
+        const RC = CFG.rocketCam, cp = posOf(G.S.ents.cyl);
+        base = { x: RC.x, y: RC.y, z: RC.z, lx: RC.cx * 0.7 + cp.x * 0.3, ly: RC.cy * 0.7 + cp.y * 0.3, lz: RC.cz * 0.7 + cp.z * 0.3, fov: RC.fov };
+        if (G.S.hero.alive) { fxTrailPush(cp); fxTrailDraw(); }      // ボンベのうしろの短い軌跡
+      }
+      let goal = base, kk = G.S.target === 'cyl' && F.rocketOn ? CFG.rocketCam.k : 2.2;
+      if (G.push && G.phase === 'sim' && !G.fast) {
+        const age = G.time - G.push.t0;
+        if (age >= K.pushDur) G.push = null;
+        else {
+          const sm = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+          const wgt = sm(age / K.pushIn) * (1 - sm((age - (K.pushDur - K.pushOut)) / K.pushOut));
+          const p = posOf(G.S.ents[G.push.focus]), w = camWide(G.S.target);
+          let dx = w.x - p.x, dz = w.z - p.z; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+          const t = { x: clamp(p.x + dx * K.pushDist, -3.8, 3.8), y: clamp(p.y + 1.3, 1.9, 3.6), z: Math.min(4.5, p.z + dz * K.pushDist), lx: p.x, ly: Math.max(0.6, p.y), lz: p.z, fov: K.pushFov };
+          goal = {}; for (const k in base) goal[k] = base[k] + (t[k] - base[k]) * wgt;
+          kk = 6;
         }
-        const bx = cp.x + v.x / sp * tt, by = cp.y + v.y / sp * tt, bz = cp.z + v.z / sp * tt;
-        camGo({ x: RC.x, y: RC.y, z: RC.z, lx: RC.cx * 0.25 + cp.x * 0.55 + bx * 0.2, ly: RC.cy * 0.25 + cp.y * 0.55 + by * 0.2, lz: RC.cz * 0.25 + cp.z * 0.55 + bz * 0.2,
-          fov: G.beat && G.beat.bounce ? RC.fovBounce : RC.fov }, dt, RC.k);
-        fxTrailPush(cp); fxTrailDraw();                           // ボンベのうしろの短い軌跡
-      } else if (G.phase === 'sim' && G.focus && G.time < G.focusUntil && !G.fast) {
-        const fe = G.S.ents[G.focus], p = posOf(fe), w = camWide(G.S.target);
-        let dx = w.x - p.x, dz = w.z - p.z; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
-        camGo({ x: clamp(p.x + dx * K.camDist, -3.8, 3.8), y: clamp(p.y + 1.3, 1.9, 3.6), z: Math.min(4.5, p.z + dz * K.camDist), lx: p.x, ly: Math.max(0.6, p.y), lz: p.z, fov: K.fov }, dt, 3.2);
-      } else camGo(camWide(G.S.target), dt, 2.2);
+      }
+      camGo(goal, dt, kk);
+      wallOff = G.S.target === 'cyl' && CAM.p.z > 4.5;              // 外から見ている間は手前の壁を消す
+      hlUpdate();
     }
 
-    for (const m of ROOM.front) m.visible = !rcam;
+    for (const m of ROOM.front) m.visible = !wallOff;
     if (G.phase === 'result' && FX.trailPts.length) { FX.trailPts.length = 0; fxTrailDraw(); }
     roomSync(G.S, G.time); peopleSync(G.S, G.time);
     applyGrade(dt);

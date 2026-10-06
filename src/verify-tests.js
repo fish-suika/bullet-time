@@ -112,9 +112,9 @@ test('③ アヒル：鳴く→A が B に振り向く→B が A を照らす→
   eq(texts(S), ['ゴムのアヒル', 'ピーッと鳴いて棚から落ちる', '敵Aが「誰だ！」とBに振り向く', 'Bも驚いてAを照らす', '撃ち合い', '2人とも倒れる', '敵が勝手に全滅', '主人公 生存']);
   eq(S.result.ok, true); eq([S.A.state, S.B.state], ['down', 'down']);
 });
-test('④ ガスボンベ：爆発しない。栓が飛ぶ→ロケット→敵は伏せる→主人公の椅子に直撃（GAME OVER）', () => {
+test('④ ガスボンベ：爆発しない。栓が飛ぶ→ロケット→敵は伏せる→主人公に直撃（GAME OVER）', () => {
   const S = runSim('cyl', 1, 0);
-  eq(texts(S), ['ガスボンベ', '栓が飛ぶ', 'ロケットになって跳ね回る', '敵2人は伏せてよける', '主人公の椅子に直撃']);
+  eq(texts(S), ['ガスボンベ', '栓が飛ぶ', 'ロケットになって跳ね回る', '敵2人は伏せてよける', '主人公に直撃']);
   eq(S.result.ok, false); eq(S.hero.killedBy, 'cyl');
   eq(S.events.concat([]).some(e => e.type === 'explode'), false);
 });

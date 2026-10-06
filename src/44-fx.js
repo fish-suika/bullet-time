@@ -212,3 +212,11 @@ function fxBounce(pos) {                                     // 壁・天井・�
   for (let i = 0; i < 8; i++) fxSpawn({ x: pos.x + rr(0.15), y: pos.y + rr(0.15), z: pos.z + rr(0.15), color: 0xb8aea0, op: 0.45, life: 0.7, s0: 0.1, s1: 0.55, vx: rr(1.4), vy: rr(1.0) + 0.3, vz: rr(1.4), spin: 0 });
   fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xffffff, add: true, op: 0.9, life: 0.12, s0: 0.5, s1: 0.9, spin: 0 });
 }
+
+// ---- 「ここを見て」の光る輪（カメラを動かさずに、いま字幕で言っている物を示す） ----
+function initHighlight(scene) {
+  FX.hl = [0, 1].map(() => {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.5, 48), new THREE.MeshBasicMaterial({ color: 0xffd04a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+    m.renderOrder = 12; m.visible = false; scene.add(m); return m;
+  });
+}
