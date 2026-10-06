@@ -12,16 +12,16 @@ function makeWorldBodies(S) {
 
   // 床・天井・壁（吹き飛んだものが部屋の外へ出ないように）
   const R = st.room;
-  const plane = (px, py, pz, nx, ny, nz, tag) => {
+  const plane = (px, py, pz, nx, ny, nz, tag, surf) => {
     const b = new CANNON.Body({ mass: 0, material: matGround });
     b.addShape(new CANNON.Plane());
     b.quaternion.setFromVectors(new CANNON.Vec3(0, 0, 1), new CANNON.Vec3(nx, ny, nz));
-    b.position.set(px, py, pz); b.tag = tag; w.addBody(b);
+    b.position.set(px, py, pz); b.tag = tag; b.surf = surf || tag; w.addBody(b);
   };
   plane(0, 0, 0, 0, 1, 0, 'floor');
   plane(0, R.h, 0, 0, -1, 0, 'ceil');
-  plane(R.x, 0, 0, -1, 0, 0, 'wall'); plane(-R.x, 0, 0, 1, 0, 0, 'wall');
-  plane(0, 0, R.zBack, 0, 0, 1, 'wall'); plane(0, 0, R.zFront, 0, 0, -1, 'wall');
+  plane(R.x, 0, 0, -1, 0, 0, 'wall', 'right'); plane(-R.x, 0, 0, 1, 0, 0, 'wall', 'left');
+  plane(0, 0, R.zBack, 0, 0, 1, 'wall', 'back'); plane(0, 0, R.zFront, 0, 0, -1, 'wall', 'front');
 
   S.ents = {};
   for (const id in st.ents) {
@@ -36,7 +36,7 @@ function makeWorldBodies(S) {
     if (d.kind === 'person') { b.linearDamping = 0.05; b.angularDamping = 0.15; }
     if (id === 'drum') { b.linearDamping = 0.25; b.angularDamping = 0.1; }
     if (id === 'ext') { b.linearDamping = 0.05; b.angularDamping = 0.5; }
-    b.addEventListener('collide', ev => { S.collisions.push({ ent: e, other: ev.body.tag, speed: Math.hypot(e.pv.x, e.pv.y, e.pv.z), ov: ev.body.velocity }); });
+    b.addEventListener('collide', ev => { S.collisions.push({ ent: e, other: ev.body.tag, surf: ev.body.surf, speed: Math.hypot(e.pv.x, e.pv.y, e.pv.z), ov: ev.body.velocity }); });
     e.body = b; w.addBody(b);
     S.ents[id] = e;
   }

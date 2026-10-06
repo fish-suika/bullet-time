@@ -170,6 +170,32 @@ test('④ ロケットは主人公に当たる前に、壁・天井・床で 3 �
   eq(Math.min(...bs) >= 3, true, '最小 ' + Math.min(...bs));
 });
 
+test('④ ロケットは部屋を回る：4 回以上、3 つ以上の別々の面で跳ね返り、続く跳ね返りの点は 2m 以上離れ、最後は主人公に当たる（20 回）', () => {
+  const rows = [], surfs = {};
+  for (let i = 0; i < RUNS; i++) {
+    const S = runSim('cyl', 100 + i, 1), P = S.rocket.pts;
+    eq(S.hero.killedBy, 'cyl', '回 ' + i + ' の死因');
+    eq(P.length >= 4, true, '回 ' + i + ' の跳ね返り ' + P.length);
+    const ss = new Set(P.map(q => q.surf)); eq(ss.size >= 3, true, '回 ' + i + ' の面 ' + [...ss].join(','));
+    let minGap = 1e9; for (let j = 1; j < P.length; j++) minGap = Math.min(minGap, dist3(P[j], P[j - 1]));
+    eq(minGap >= 2, true, '回 ' + i + ' の最短の間隔 ' + minGap.toFixed(2));
+    rows.push({ n: P.length, k: ss.size, g: minGap }); for (const q of P) surfs[q.surf] = (surfs[q.surf] || 0) + 1;
+  }
+  info('④ 跳ね返り回数 ' + Math.min(...rows.map(r => r.n)) + '〜' + Math.max(...rows.map(r => r.n)) + '／別の面の数 最小 ' + Math.min(...rows.map(r => r.k)) + '／続く点の間隔 最小 ' + Math.min(...rows.map(r => r.g)).toFixed(2) + 'm／面ごとの回数（20 回の合計） ' + JSON.stringify(surfs));
+  const S0 = runSim('cyl', 100, 1); info('④ 基準の 1 回：' + S0.rocket.pts.map(q => q.surf + '(' + q.x.toFixed(1) + ',' + q.y.toFixed(1) + ',' + q.z.toFixed(1) + ')').join(' → ') + '／主人公に当たるまで内部 ' + S0.hero.hitAt.toFixed(2) + ' 秒');
+});
+test('② 消火器が A に当たる向きと、A が吹っ飛ぶ向きの角度は 20° 以下（20 回）。消火器は最後ほぼ水平', () => {
+  const an = [], el = [];
+  for (let i = 0; i < RUNS; i++) {
+    const S = runSim('ext', 100 + i, 1), x = S.ext, u = x.impV, w = x.aV;
+    eq(!!(u && w), true, '回 ' + i + ' 直撃した');
+    const ang = Math.acos((u.x * w.x + u.y * w.y + u.z * w.z) / (Math.hypot(u.x, u.y, u.z) * Math.hypot(w.x, w.y, w.z))) * 180 / Math.PI;
+    an.push(ang); el.push(Math.atan2(u.y, Math.hypot(u.x, u.z)) * 180 / Math.PI);
+    eq(ang <= 20, true, '回 ' + i + ' の角度 ' + ang.toFixed(1));
+  }
+  info('② 角度（消火器の速度 vs A の飛ぶ向き）最大 ' + Math.max(...an).toFixed(1) + '° 平均 ' + (an.reduce((a, b) => a + b, 0) / RUNS).toFixed(1) + '°／消火器の当たる直前の仰角 ' + Math.min(...el).toFixed(1) + '〜' + Math.max(...el).toFixed(1) + '°');
+});
+
 // ===== リトライの軽さ =====
 test('シミュレーションの作り直しは速い（20 回の平均）', () => {
   const t0 = performance.now(); for (let i = 0; i < 20; i++) newSim(STAGE1, mulberry32(i));

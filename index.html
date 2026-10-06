@@ -190,8 +190,13 @@ const CFG = {
   ext: {
     thrust: 70,              // 噴射の力（N）。A の顔のほうへ向ける
     maxSpeed: 8,
-    hitDist: 0.6,            // A の顔までこの近さで直撃
-    bowlSpeed: 9, bowlUp: 2.2,   // 直撃された A が B のほうへ飛ぶ強さ
+    // 飛び方：床から A の顔の高さへ上がり、A の脇を回り込んで、B と反対側から B のほうへ水平にまっすぐ突っ込む（A はその向きに飛ぶ）
+    wp1: { x: -0.2, y: 1.6, z: -3.0 },   // 最初に通る点
+    runLen: 1.8,             // 顔の手前、B 方向の直線の助走（m）
+    sp0: 5, sp1: 8,          // 飛び始めの速さと、助走中の速さ
+    steerK: 0.2,
+    hitDist: 0.85,           // A の顔までこの近さで直撃
+    bowlSpeed: 9, bowlUp: 1.5,   // 直撃された A が B のほうへ飛ぶ強さ
     bowlPush: 7,             // 巻き込まれた B の飛ぶ強さ
     bowlWait: 0.9,           // A が B に届かなかったとき、この時間で B を巻き込ませる（そっと押す）
     endAfter: 1.4,           // 敵が全員倒れてから結果までの間
@@ -207,10 +212,19 @@ const CFG = {
   // ④ ガスボンベ：爆発しない。ロケットになって跳ね回る → 主人公に直撃
   rocket: {
     thrust: 450,             // 噴射の力（N）。速さの向きに押す
-    maxSpeed: 9.5,
-    launch: { x: 0.55, y: 0.4, z: 0.7 },    // 最初の向き（主人公から遠ざかる手前のほうへ。壁・天井・床で跳ね回る）
-    bounceN: 4,              // 壁・天井・床でこの回数跳ね返るまでは主人公へ寄らない（当たりもしない）
-    homeCap: 6,              // 念のため：ロケットになってからこの秒数を過ぎたら、回数に関係なく主人公へ寄せ始める
+    maxSpeed: 11,
+    // 部屋を回る経路：ぶつかる面の点を順に狙う（左の壁→天井→右の壁→床→奥の壁）。跳ね返るたびに次の点へ向きを直す。全部回ってから主人公へ
+    route: [
+      { x: -4.2, y: 2.0, z: -0.5, s: "left" },
+      { x: 0.5, y: 4.2, z: 1.5, s: "ceil" },
+      { x: 4.2, y: 1.2, z: 0.5, s: "right" },
+      { x: -0.5, y: 0, z: 3.0, s: "floor" },
+      { x: -2.5, y: 2.0, z: -4.8, s: "back" },
+    ],
+    cruise: 10.5,             // 経路を回る間の速さ
+    steerK: 0.25,            // 毎ステップ、速度を次の点の向きへ寄せる割合
+    debounce: 0.25,          // 跳ね返りを 1 回と数える最小の間隔（角の二重ヒット対策）
+    homeCap: 9,              // 念のため：ロケットになってからこの秒数を過ぎたら、回数に関係なく主人公へ寄せ始める
     steerRamp: 0.5,          // 寄せ始めてから、完全に主人公へ向くまで
     restitution: 0.85,       // 壁・天井・床での跳ね返り
     dodgeDist: 3.2,          // 敵がこの近さまで来たら伏せる
@@ -290,16 +304,16 @@ function makeWorldBodies(S) {
 
   // 床・天井・壁（吹き飛んだものが部屋の外へ出ないように）
   const R = st.room;
-  const plane = (px, py, pz, nx, ny, nz, tag) => {
+  const plane = (px, py, pz, nx, ny, nz, tag, surf) => {
     const b = new CANNON.Body({ mass: 0, material: matGround });
     b.addShape(new CANNON.Plane());
     b.quaternion.setFromVectors(new CANNON.Vec3(0, 0, 1), new CANNON.Vec3(nx, ny, nz));
-    b.position.set(px, py, pz); b.tag = tag; w.addBody(b);
+    b.position.set(px, py, pz); b.tag = tag; b.surf = surf || tag; w.addBody(b);
   };
   plane(0, 0, 0, 0, 1, 0, 'floor');
   plane(0, R.h, 0, 0, -1, 0, 'ceil');
-  plane(R.x, 0, 0, -1, 0, 0, 'wall'); plane(-R.x, 0, 0, 1, 0, 0, 'wall');
-  plane(0, 0, R.zBack, 0, 0, 1, 'wall'); plane(0, 0, R.zFront, 0, 0, -1, 'wall');
+  plane(R.x, 0, 0, -1, 0, 0, 'wall', 'right'); plane(-R.x, 0, 0, 1, 0, 0, 'wall', 'left');
+  plane(0, 0, R.zBack, 0, 0, 1, 'wall', 'back'); plane(0, 0, R.zFront, 0, 0, -1, 'wall', 'front');
 
   S.ents = {};
   for (const id in st.ents) {
@@ -314,7 +328,7 @@ function makeWorldBodies(S) {
     if (d.kind === 'person') { b.linearDamping = 0.05; b.angularDamping = 0.15; }
     if (id === 'drum') { b.linearDamping = 0.25; b.angularDamping = 0.1; }
     if (id === 'ext') { b.linearDamping = 0.05; b.angularDamping = 0.5; }
-    b.addEventListener('collide', ev => { S.collisions.push({ ent: e, other: ev.body.tag, speed: Math.hypot(e.pv.x, e.pv.y, e.pv.z), ov: ev.body.velocity }); });
+    b.addEventListener('collide', ev => { S.collisions.push({ ent: e, other: ev.body.tag, surf: ev.body.surf, speed: Math.hypot(e.pv.x, e.pv.y, e.pv.z), ov: ev.body.velocity }); });
     e.body = b; w.addBody(b);
     S.ents[id] = e;
   }
@@ -395,9 +409,9 @@ function newSim(stage, rng) {
   const S = { stage, rng: rng || Math.random, t: 0, state: 'ready', events: [], log: [], logKeys: {}, collisions: [],
     world: null, ents: null, target: null, result: null, doneAt: null, exploded: false, bothDownAt: null, knocks: [],
     flags: { extOn: false, rocketOn: false },                    // 見た目（粒・ループ音）用
-    ext: { on: false, t0: 0, faceHit: false, bowled: false, bowlHit: false, bowlAt: 0, dirx: 0, dirz: 0 },
+    ext: { on: false, phase: 0, t0: 0, faceHit: false, bowled: false, bowlHit: false, bowlAt: 0, dirx: 0, dirz: 0 },
     discharge: { at: null, fired: false }, ignite: { at: null },
-    rocket: { startAt: null, on: false, bounces: 0, homeAt: null },
+    rocket: { startAt: null, on: false, bounces: 0, homeAt: null, lastSurf: null, lastBounceT: -9, pts: [] },
     hero: { alive: true, killedBy: null, hitText: null } };
   makeWorldBodies(S);
   S.A = newEnemyA(S);
@@ -516,26 +530,46 @@ function explode(S, pos) {
 function extUpdate(S) {
   const x = S.ext, E = CFG.ext, e = S.ents.ext, a = S.ents.A;
   if (x.on) {
-    const ap = posOf(a), head = { x: ap.x, y: ap.y + 0.65, z: ap.z - 0.1 }, p = e.body.position;
-    const dx = head.x - p.x, dy = head.y - p.y, dz = head.z - p.z, l = Math.hypot(dx, dy, dz) || 1, b = e.body;
-    b.force.x += dx / l * E.thrust; b.force.y += dy / l * E.thrust + b.mass * 9.8 * 0.95; b.force.z += dz / l * E.thrust;   // A の顔のほうへ噴射（ほぼ無重力）
-    const v = b.velocity, sp = Math.hypot(v.x, v.y, v.z);
+    const ap = posOf(a), bp = posOf(S.ents.B), b = e.body, p = b.position, v = b.velocity;
+    const head = { x: ap.x, y: ap.y + 0.65, z: ap.z - 0.1 };
+    let ux = bp.x - ap.x, uz = bp.z - ap.z; const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;   // A から B への向き（水平）。最後の直線はこの向き
+    const pre = { x: head.x - ux * E.runLen, y: head.y, z: head.z - uz * E.runLen };                  // 助走の始点（B と反対側・顔の高さ）
+    let dir, spd = E.sp1;
+    if (x.phase === 0) {                                      // 床から上がる
+      dir = { x: E.wp1.x - p.x, y: E.wp1.y - p.y, z: E.wp1.z - p.z }; spd = E.sp0 + (E.sp1 - E.sp0) * clamp((S.t - x.t0) / 0.6, 0, 1);
+      if (dist3(p, E.wp1) < 0.5) x.phase = 1;
+    } else if (x.phase === 1) {                               // 助走の始点へ回り込む
+      dir = { x: pre.x - p.x, y: pre.y - p.y, z: pre.z - p.z };
+      const al = (p.x - pre.x) * ux + (p.z - pre.z) * uz, la = Math.hypot(p.x - pre.x - al * ux, p.z - pre.z - al * uz);       // 線に乗った（始点の近くで、横ずれが小さい）
+      if (dist3(p, pre) < 0.45 || (al > -0.3 && la < 0.4)) x.phase = 2;
+    }
+    if (x.phase === 2) {                                      // 直線の助走：B の向きへ水平にまっすぐ（横ずれは線へ戻す）
+      const rx = p.x - head.x, rz = p.z - head.z, al = rx * ux + rz * uz, ex = rx - al * ux, ez = rz - al * uz;
+      dir = { x: ux - ex * 1.5, y: (head.y - p.y) * 0.8, z: uz - ez * 1.5 };
+    }
+    const l = Math.hypot(dir.x, dir.y, dir.z) || 1, k = E.steerK;
+    v.x += (dir.x / l * spd - v.x) * k; v.y += (dir.y / l * spd - v.y) * k; v.z += (dir.z / l * spd - v.z) * k;
+    b.force.y += b.mass * 9.8;                                  // 重さを打ち消す（ほぼ無重力で飛ぶ）
+    const sp = Math.hypot(v.x, v.y, v.z);
     if (sp > E.maxSpeed) { v.x *= E.maxSpeed / sp; v.y *= E.maxSpeed / sp; v.z *= E.maxSpeed / sp; }
     if (sp > 0.5) b.quaternion.setFromVectors(new CANNON.Vec3(1, 0, 0), new CANNON.Vec3(v.x / sp, v.y / sp, v.z / sp));    // 機首（+x）は進む向き
     b.angularVelocity.set(0, 0, 0);
-    if (l < E.hitDist || S.t - x.t0 > 3) faceHit(S);
+    x.lastV = { x: v.x, y: v.y, z: v.z };
+    if (dist3(p, head) < E.hitDist || S.t - x.t0 > 3) faceHit(S);
   }
   if (x.faceHit && !x.bowled && S.B.state !== 'down' && (x.bowlHit || S.t - x.bowlAt > E.bowlWait)) bowlB(S);
 }
 function faceHit(S) {
-  const x = S.ext, E = CFG.ext, a = S.ents.A, b = posOf(S.ents.B), ap = posOf(a);
+  const x = S.ext, E = CFG.ext, a = S.ents.A;
   if (x.faceHit) return;
   x.faceHit = true; x.on = false; S.flags.extOn = false; x.bowlAt = S.t;
   pushLog(S, 'faceHit', '敵Aの顔面に直撃');
-  const dx = b.x - ap.x, dz = b.z - ap.z, l = Math.hypot(dx, dz) || 1;
-  x.dirx = dx / l; x.dirz = dz / l;
+  const iv = x.lastV || { x: 0, y: 0, z: 0 }, hs = Math.hypot(iv.x, iv.z) || 1, sp3 = Math.hypot(iv.x, iv.y, iv.z);
+  x.dirx = iv.x / hs; x.dirz = iv.z / hs; x.impV = iv;                                  // A は、消火器が飛んできた向きに吹っ飛ぶ（B はその先にいる）
+  const k = clamp(sp3 / E.maxSpeed, 0.6, 1.1);
   releaseEnt(a); S.A.state = 'down';
-  a.body.velocity.set(x.dirx * E.bowlSpeed, E.bowlUp, x.dirz * E.bowlSpeed);        // 顔面に当たった A は、B のほうへ吹っ飛ぶ
+  a.body.velocity.set(x.dirx * E.bowlSpeed * k, E.bowlUp, x.dirz * E.bowlSpeed * k);
+  x.aV = { x: a.body.velocity.x, y: a.body.velocity.y, z: a.body.velocity.z };
   a.body.angularVelocity.set(-x.dirz * 5, rnd(S, -2, 2), x.dirx * 5);
   emit(S, { type: 'faceHit', pos: posOf(S.ents.ext) });
 }
@@ -555,21 +589,28 @@ function rocketUpdate(S) {
   if (R.startAt === null) return;
   if (!R.on) {
     if (S.t < R.startAt) return;
-    R.on = true; R.t0 = S.t; S.flags.rocketOn = true; R.bounces = 0; R.homeAt = null;
-    const l = Math.hypot(C.launch.x, C.launch.y, C.launch.z);
-    e.body.velocity.set(C.launch.x / l * 3, C.launch.y / l * 3, C.launch.z / l * 3);
+    R.on = true; R.t0 = S.t; S.flags.rocketOn = true; R.bounces = 0; R.homeAt = null; R.lastSurf = null; R.lastBounceT = -9; R.pts = [];
+    const w0 = C.route[0], p0 = posOf(e), l0 = dist3(w0, p0) || 1;
+    e.body.velocity.set((w0.x - p0.x) / l0 * 3, (w0.y - p0.y) / l0 * 3, (w0.z - p0.z) / l0 * 3);          // 最初の面の点へ飛び出す
     pushLog(S, 'rocket', '爆発せず、ロケットになって跳ね回る');
     emit(S, { type: 'rocketStart', pos: posOf(e) });
   }
   const b = e.body, v = b.velocity, sp = Math.hypot(v.x, v.y, v.z), t = S.t - R.t0;
-  let dx = sp > 0.5 ? v.x / sp : C.launch.x, dy = sp > 0.5 ? v.y / sp : C.launch.y, dz = sp > 0.5 ? v.z / sp : C.launch.z;
   const h = posOf(S.ents.hero), p = posOf(e); h.y += 0.3;     // 狙いは主人公の胸の高さ（椅子ではなく体）
-  if (R.homeAt === null && (R.bounces >= C.bounceN || t > C.homeCap)) R.homeAt = t;          // 決めた回数だけ跳ね回ってから、主人公へ向かう
-  const hl = dist3(h, p) || 1, w = R.homeAt === null ? 0 : clamp((t - R.homeAt) / C.steerRamp, 0, 1);
-  dx = dx * (1 - w) + (h.x - p.x) / hl * w; dy = dy * (1 - w) + (h.y - p.y) / hl * w; dz = dz * (1 - w) + (h.z - p.z) / hl * w;
-  const l = Math.hypot(dx, dy, dz) || 1;
-  b.force.x += dx / l * C.thrust; b.force.y += dy / l * C.thrust + b.mass * 9.8 * 0.95; b.force.z += dz / l * C.thrust;   // 向きに噴射しつつ、ほぼ無重力で飛ぶ
-  if (w > 0 && sp > 0.5) { const k = 0.14 * w, s2 = Math.min(sp, C.maxSpeed); v.x += ((h.x - p.x) / hl * s2 - v.x) * k; v.y += ((h.y - p.y) / hl * s2 - v.y) * k; v.z += ((h.z - p.z) / hl * s2 - v.z) * k; }   // 主人公のほうへ速さの向きを寄せる
+  if (R.homeAt === null && (R.bounces >= C.route.length || t > C.homeCap)) R.homeAt = t;          // 経路を回りきってから、主人公へ向かう
+  const hl = dist3(h, p) || 1;
+  if (R.homeAt === null) {                                     // 経路：次の面の点へ向きを直しながら、ほぼ無重力で飛ぶ
+    const w = C.route[R.bounces], wl = dist3(w, p) || 1, k = C.steerK;
+    v.x += ((w.x - p.x) / wl * C.cruise - v.x) * k; v.y += ((w.y - p.y) / wl * C.cruise - v.y) * k; v.z += ((w.z - p.z) / wl * C.cruise - v.z) * k;
+    b.force.y += b.mass * 9.8;
+  } else {                                                     // 主人公へ
+    const w = clamp((t - R.homeAt) / C.steerRamp, 0, 1);
+    let dx = sp > 0.5 ? v.x / sp : 0, dy = sp > 0.5 ? v.y / sp : 0, dz = sp > 0.5 ? v.z / sp : 0;
+    dx = dx * (1 - w) + (h.x - p.x) / hl * w; dy = dy * (1 - w) + (h.y - p.y) / hl * w; dz = dz * (1 - w) + (h.z - p.z) / hl * w;
+    const l = Math.hypot(dx, dy, dz) || 1;
+    b.force.x += dx / l * C.thrust; b.force.y += dy / l * C.thrust + b.mass * 9.8 * 0.95; b.force.z += dz / l * C.thrust;
+    if (w > 0 && sp > 0.5) { const k = 0.14 * w, s2 = Math.min(sp, C.maxSpeed); v.x += ((h.x - p.x) / hl * s2 - v.x) * k; v.y += ((h.y - p.y) / hl * s2 - v.y) * k; v.z += ((h.z - p.z) / hl * s2 - v.z) * k; }
+  }
   if (sp > C.maxSpeed) { v.x *= C.maxSpeed / sp; v.y *= C.maxSpeed / sp; v.z *= C.maxSpeed / sp; }
   if (sp > 0.5) b.quaternion.setFromVectors(new CANNON.Vec3(0, 1, 0), new CANNON.Vec3(v.x / sp, v.y / sp, v.z / sp));   // 機首は進む向き
   b.angularVelocity.set(0, 0, 0);
@@ -608,7 +649,8 @@ function processCollisions(S) {
     if (e.id === 'A' && c.other === 'B' && S.ext.faceHit) S.ext.bowlHit = true;                       // 飛んだ A が B にぶつかった
     else if (e.id === 'cyl' && c.other === 'hero' && c.speed > CFG.rocket.hitSpeed && S.rocket.on && S.rocket.homeAt !== null && S.t - S.rocket.t0 > 0.25) killHero(S, 'cyl', '主人公に直撃', e.body.velocity);
     else if (e.id === 'cyl' && S.rocket.on && (c.other === 'wall' || c.other === 'ceil' || c.other === 'floor') && c.speed > 3) {
-      if (!e.lastBounce || S.t - e.lastBounce > 0.15) { e.lastBounce = S.t; S.rocket.bounces++; emit(S, { type: 'ricochet', pos: posOf(e), speed: c.speed }); }
+      const R = S.rocket;                                      // 跳ね返りは「前と違う面」で「0.25 秒以上あいた」ときだけ数える（角の二重ヒットを 1 回にしない）
+      if (c.surf !== R.lastSurf && S.t - R.lastBounceT >= CFG.rocket.debounce) { R.lastSurf = c.surf; R.lastBounceT = S.t; R.bounces++; R.pts.push({ x: posOf(e).x, y: posOf(e).y, z: posOf(e).z, surf: c.surf }); emit(S, { type: 'ricochet', pos: posOf(e), speed: c.speed }); }
     } else if (e.id === 'duck' && c.other === 'floor' && c.speed > 1 && !S.duckLanded) { S.duckLanded = true; emit(S, { type: 'thud', pos: posOf(e), speed: 3, soft: true }); }
     else if ((e.def.kind === 'person' || e.id === 'drum') && c.other === 'floor' && c.speed > 2.5) {
       if (!e.lastThud || S.t - e.lastThud > 0.3) { e.lastThud = S.t; emit(S, { type: 'thud', pos: posOf(e), speed: c.speed }); }
