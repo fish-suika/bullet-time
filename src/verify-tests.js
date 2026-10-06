@@ -88,6 +88,16 @@ test('配置：撃てる対象が 4 つ（A・消火器・アヒル・ガスボ�
   eq(yawToward(0, -1), 0); near(yawToward(1, 0), -Math.PI / 2, 1e-9);
 });
 
+test('弾の経路：どの対象でも、対象以外の人・棚・ドラム缶などとのすき間が clearance 以上で、終点は対象にぴったり', () => {
+  const rows = [];
+  for (const t of STAGE1.targets) {
+    const before = BUL.gap(BUL.base(STAGE1.branch, t.aim), t.id), cv = BUL.curve(STAGE1.branch, t.aim, t.id), after = BUL.gap(cv, t.id), end = BUL.at(cv, 1);
+    rows.push(t.id + ' ' + before.gap.toFixed(2) + '→' + after.gap.toFixed(2) + 'm');
+    eq(after.gap >= CFG.bullet.clearance - 1e-6, true, t.id + ' のすき間 ' + after.gap.toFixed(2) + '（' + after.who + '）');
+    near(end.x, t.aim.x, 1e-9, t.id + ' 終点 x'); near(end.y, t.aim.y, 1e-9, t.id + ' 終点 y'); near(end.z, t.aim.z, 1e-9, t.id + ' 終点 z');
+  }
+  info('弾の経路のすき間（ふつうの曲がり方 → よける曲がり方）  ' + rows.join('  '));
+});
 // ===== 4 つの未来（基準：配置を揺らさない・乱数 1 つ） =====
 test('① 敵 A を撃つ：倒れながら引き金を引く→弾がガスボンベに命中→大爆発で主人公も吹き飛ぶ（GAME OVER）', () => {
   const S = runSim('A', 1, 0);

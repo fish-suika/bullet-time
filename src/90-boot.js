@@ -79,7 +79,7 @@
   function fire() {
     if (G.phase !== 'freeze') return;
     G.phase = 'fly2'; G.t = 0;
-    G.curve = BUL.curve(br, tgt(G.sel).aim);
+    G.curve = BUL.curve(br, tgt(G.sel).aim, G.sel);
     G.lastTarget = G.sel;
     hudMarkers(null); hudTint(false); FX.preview.visible = false;
     sndConfirm(); sndWhooshStart();
@@ -257,7 +257,7 @@
       camApply(0); camera.updateMatrixWorld();
       const items = markerItems();
       hudMarkers(items, G.sel);
-      fxPreview(BUL.curve(br, tgt(G.sel).aim));
+      fxPreview(BUL.curve(br, tgt(G.sel).aim, G.sel));
       fxBullet(br, { x: 0, y: 0, z: -1 }, true);
       fxRings(br, G.time, camera.position, true);
       fxTrailDraw();
