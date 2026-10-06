@@ -20,7 +20,7 @@
   }
 
   const scene = new THREE.Scene();
-  buildRoom(scene); buildProps(scene); buildPeople(scene); initFx(scene); initRain(scene); initHighlight(scene);
+  buildRoom(scene); buildProps(scene); buildPeople(scene); initFx(scene); initHighlight(scene);
   const camera = new THREE.PerspectiveCamera(70, 9 / 16, 0.1, 80);
   fit();
   CAM.cam = camera;
@@ -156,17 +156,12 @@
           break;
         case 'thud': sndThud(ev.speed); break;
         case 'heroHit': hudHurt(); FX.shake += 0.5; if (ev.who === 'cyl') { sndBonk(); hudPop('ゴン！', 0.9); } break;
-        // ① 敵 A
-        case 'gunDrop': sndThud(4); break;
-        case 'shelfBump': sndClang(); FX.shake += 0.2; break;
-        case 'paintCap': sndClang(); fxSparks(ev.pos, 8, 0xffffff, 2); hudPop('ゴンッ！', 0.9); break;
-        // ② 消火器
         case 'step': stepBeat(ev); break;
-        case 'extHit': sndClang(); fxSparks(ev.pos, 10, 0xffe0a0, 3); break;
-        case 'flashThrow': sndThud(2); break;
-        case 'sprinkler': sndGlass(); fxSparks(ev.pos, 14, 0xdfeeff, 3); sndRainStart(); break;
-        case 'flood': roomWet(); break;
-        case 'slip': sndSplash(); if (!G.popSlip || performance.now() - G.popSlip > 900) { G.popSlip = performance.now(); hudPop('ツルッ！', 0.7); } break;
+        // ① 大爆発（ボンベが爆発して、主人公も吹き飛ぶ）
+        case 'explode': sndBoom(); fxBigExplosion(ev.pos); hudFlash(0.55, 500); break;
+        // ② 消火器
+        case 'extStart': sndPop(); break;
+        case 'faceHit': sndBonk(); sndClang(); fxSparks(ev.pos, 20, 0xffffff, 6); fxBounce(ev.pos); FX.shake += 0.6; hudPop('ガンッ！', 0.9); break;
         // ③ アヒル
         case 'squeak': sndSqueak(); hudPop('ピーッ！', 0.9); break;
         case 'speech': hudPop('「' + ev.text + '」', 0.9); break;
@@ -298,8 +293,8 @@
         if (G.S.events.length) handleEvents();
       }
       G.ts = scale; $('ff').classList.toggle('on', G.phase === 'sim' && !G.fast && G.time - G.simT0 < 4);
-      const F = G.S.flags, X = G.S.ext;                       // 消火器の噴射・ロケットの噴射（毎フレームの粒と、1 つだけのループ音）
-      if (F.extOn && ROOM.extNozzle) { ROOM.views.ext.obj.updateMatrixWorld(true); ROOM.extNozzle.getWorldPosition(__nz); fxSpray(__nz, { x: -X.dirx, y: 0.05, z: -X.dirz }); sndSprayStart(); } else sndLoopStop('spray');
+      const F = G.S.flags;                       // 消火器の噴射・ロケットの噴射（毎フレームの粒と、1 つだけのループ音）
+      if (F.extOn && ROOM.extNozzle) { ROOM.views.ext.obj.updateMatrixWorld(true); ROOM.extNozzle.getWorldPosition(__nz); const ev2 = G.S.ents.ext.body.velocity, es = Math.hypot(ev2.x, ev2.y, ev2.z) || 1; fxSpray(__nz, { x: -ev2.x / es, y: -ev2.y / es, z: -ev2.z / es }); sndSprayStart(); } else sndLoopStop('spray');
       if (F.rocketOn && ROOM.cylTail) { ROOM.views.cyl.obj.updateMatrixWorld(true); ROOM.cylTail.getWorldPosition(__nz); const cv = G.S.ents.cyl.body.velocity, cs = Math.hypot(cv.x, cv.y, cv.z) || 1; fxJet(__nz, { x: -cv.x / cs, y: -cv.y / cs, z: -cv.z / cs }); sndJetStart(); }
       if (G.phase === 'result') sndLoopStop('jet');
       // カメラの方針：連鎖の間は「安定した引き画」のまま。ステップごとには動かさない（見る場所は光る輪で示す）。
@@ -334,8 +329,7 @@
     if (G.phase === 'result' && FX.trailPts.length) { FX.trailPts.length = 0; fxTrailDraw(); }
     roomSync(G.S, G.time); peopleSync(G.S, G.time);
     applyGrade(dt);
-    fxUpdate(dt * G.ts); fxTracerUpdate(dt);
-    fxRainUpdate(dt * G.ts, G.S.flags.rain && (G.phase === 'sim' || G.phase === 'result'), posOf(G.S.ents.sprk));
+    fxUpdate(dt * G.ts); fxTracerUpdate(dt); fxShockUpdate(dt * G.ts);
     if (G.phase !== 'freeze') camApply(FX.shake);
     renderer.render(scene, camera);
   }

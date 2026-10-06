@@ -78,8 +78,6 @@
   #result h2{font-size:calc(var(--u)*13);letter-spacing:.1em;line-height:1.1}
   #result h2.ok{color:var(--gold)} #result h2.ng{color:var(--red)}
   #result .sub{margin-top:calc(var(--u)*1.5);font-size:calc(var(--u)*4.4);letter-spacing:.2em;opacity:.9}
-  #resBadge{display:none;margin:calc(var(--u)*2) auto 0;width:max-content;padding:calc(var(--u)*1) calc(var(--u)*4);border-radius:calc(var(--u)*5);border:1px solid var(--gold);background:rgba(255,208,74,.18);color:var(--gold);font-size:calc(var(--u)*3.6);letter-spacing:.12em}
-  #resBadge.on{display:block}
   #result .low{width:100%;display:flex;flex-direction:column;align-items:center;gap:calc(var(--u)*2.4)}
   #chain{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:calc(var(--u)*1.6) calc(var(--u)*1.2);font-size:calc(var(--u)*3.6)}
   #chain span{padding:calc(var(--u)*.8) calc(var(--u)*3);border-radius:calc(var(--u)*4);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);white-space:nowrap}
@@ -122,7 +120,7 @@
   <div id="flash"></div>
   <div id="hurt"></div>
   <div id="result">
-    <div><h2 id="resTitle"></h2><div class="sub" id="resSub"></div><div id="resBadge">隠れた未来を発見</div></div>
+    <div><h2 id="resTitle"></h2><div class="sub" id="resSub"></div></div>
     <div class="low">
       <div id="chain"></div>
       <div id="resFut"></div>

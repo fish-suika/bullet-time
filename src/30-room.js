@@ -146,11 +146,6 @@ function buildProps(scene) {
     mkBox(g, 0.35, 0.22, 0.5, stdMat(0x5a5f66, 0.6, 0.3), 0, -0.1, 0.1);
     mkBox(g, 0.3, 0.2, 0.3, stdMat(0x8a6a3a, 0.8), 0, 0.45, -0.15);
   });
-  wrap('paint', g => {                                     // ペンキ缶
-    cyl(g, 0.1, 0.1, 0.24, stdMat(0xb8bcc2, 0.35, 0.7), 0, 0, 0);
-    cyl(g, 0.103, 0.103, 0.09, stdMat(0xe08a20, 0.6), 0, 0.01, 0);
-    cyl(g, 0.105, 0.105, 0.02, stdMat(0x8a8e94, 0.4, 0.7), 0, 0.12, 0);
-  });
   wrap('duck', g => {                                      // ゴムのアヒル（前は -Z）
     const y = stdMat(0xffd830, 0.5), o = stdMat(0xff8a1a, 0.5);
     const b = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 10), y); b.scale.set(1, 0.85, 1.25); b.castShadow = true; g.add(b);
@@ -158,15 +153,6 @@ function buildProps(scene) {
     mkBox(g, 0.05, 0.016, 0.045, o, 0, 0.09, -0.125, false);
     for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 })); e.position.set(sx * 0.03, 0.11, -0.105); g.add(e); }
     const tail = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), y); tail.position.set(0, 0.04, 0.1); g.add(tail);
-  });
-  wrap('gun', g => {                                       // 敵 A の銃（A が倒れると手から離れて床へ）
-    mkBox(g, 0.05, 0.05, 0.2, darkM, 0, 0.01, 0); mkBox(g, 0.045, 0.11, 0.06, darkM, 0, -0.06, 0.06);
-  });
-  wrap('sprk', g => {                                      // 天井のスプリンクラー
-    const brass = stdMat(0xb8963c, 0.35, 0.8);
-    cyl(g, 0.03, 0.03, 0.3, brass, 0, 0.15, 0);
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshStandardMaterial({ color: 0xc02a20, roughness: 0.2 })); bulb.position.y = -0.02; g.add(bulb);
-    cyl(g, 0.13, 0.13, 0.012, brass, 0, -0.09, 0);
   });
   wrap('cyl', g => {                                       // ガスボンベ（赤）。ロケットになると軸 +y が機首
     const r = 0.17, hh = E.cyl.half[1], m = stdMat(0xe63424, 0.4, 0.3, { emissive: 0x7a1208, emissiveIntensity: 0.9 });   // 明るい赤＋うっすら自ら光る（暗い壁の前でも見える）
@@ -192,19 +178,13 @@ function buildProps(scene) {
 function roomReset() {
   for (const id in ROOM.views) ROOM.views[id].obj.visible = true;
   ROOM.lampLight.intensity = 1.7; ROOM.lampLight.color.setHex(0xffb464);
-  ROOM.floorM.roughness = 0.9; ROOM.floorM.metalness = 0; ROOM.floorM.color.setHex(0xffffff);
 }
-function roomWet() {                                       // 床がしっとり光る
-  ROOM.floorM.roughness = 0.22; ROOM.floorM.metalness = 0.15; ROOM.floorM.color.setHex(0x8a98a8);
-}
-
 // 剛体の位置・向きを見た目に反映
 function roomSync(S, time) {
   for (const id in ROOM.views) {
     const e = S.ents[id], v = ROOM.views[id];
     if (!e) continue;
-    if (e.broken || e.captured) { v.obj.visible = false; continue; }
-    if (id === 'gun') v.obj.visible = !e.held;              // 銃は A の手を離れてから見える
+    if (e.broken) { v.obj.visible = false; continue; }
     const p = e.body.position, q = e.body.quaternion;
     v.obj.position.set(p.x, p.y, p.z); v.obj.quaternion.set(q.x, q.y, q.z, q.w);
   }

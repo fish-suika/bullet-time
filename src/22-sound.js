@@ -84,7 +84,6 @@ function sndWhooshStop() {
 function sndSqueak() { sndTone(1500, 2300, 0.09, 'square', 0.22, 0); sndTone(2300, 1700, 0.16, 'square', 0.2, 0.09); }     // ゴムのアヒル「ピーッ」
 function sndPop() { sndTone(300, 80, 0.12, 'sine', 0.6, 0); sndNoise(0.18, 0.5, 'bandpass', 1800, 300, 0); }                // 栓が飛ぶ
 function sndClang() { sndTone(420, 260, 0.35, 'triangle', 0.35, 0); sndTone(840, 520, 0.25, 'triangle', 0.18, 0.005); sndNoise(0.1, 0.3, 'bandpass', 2000, 600, 0); }   // ロケットの跳ね返り・ドラム缶
-function sndSplash() { sndNoise(0.15, 0.06, 'lowpass', 2500, 400, 0); sndTone(500, 180, 0.12, 'sine', 0.08, 0); }          // すべって転ぶ
 // ずっと鳴る音（噴射・雨）は「1 つの輪（ループ）」だけを、ゆっくり出して・ゆっくり消す。ローパスで柔らかく、音量は衝撃音よりずっと小さく
 const __loops = {};
 function sndLoopStart(name, type, freq, q, gain) {
@@ -103,10 +102,4 @@ function sndLoopStop(name) {
 function sndLoopsStop() { for (const n of Object.keys(__loops)) sndLoopStop(n); }
 function sndJetStart() { sndLoopStart('jet', 'lowpass', 650, 0.7, 0.05); }                       // ロケットの噴射：低いごー
 function sndSprayStart() { sndLoopStart('spray', 'lowpass', 2200, 0.5, 0.04); }                 // 消火器の噴射：やわらかいしゅー
-function sndRainStart() {                                                                          // 雨：はじめだけ少し大きく、1.5 秒かけて小さな背景のさー
-  if (!SND.ctx || SND.mute || __loops.rain) return;
-  sndLoopStart('rain', 'lowpass', 2600, 0.4, 0.06);
-  setTimeout(() => sndLoopSet('rain', 0.02, 0.6), 1500);
-}
-function sndRainStop() { sndLoopStop('rain'); }
 function sndBonk() { sndTone(260, 120, 0.2, 'triangle', 0.26, 0); sndTone(620, 380, 0.14, 'triangle', 0.1, 0.004); sndNoise(0.09, 0.14, 'lowpass', 2200, 500, 0); }   // 跳ね返りの「ガン！」（ほどほどの音量）

@@ -83,11 +83,11 @@ function fxUpdate(dt) {
 
 function fxClear() {
   for (const p of FX.parts) if (p.life > 0) { p.life = 0; p.m.visible = false; FX.free.push(p); }
-  FX.shake = 0; FX.flashLight.intensity = 0;
+  FX.shake = 0; FX.flashLight.intensity = 0; if (FX.shock) FX.shock.visible = false;
   for (const m of FX.rings) m.visible = false;
   for (const t of FX.tracers) FX.scene.remove(t.line);
   FX.tracers.length = 0;
-  FX.bullet.visible = false; FX.trail.visible = false; FX.preview.visible = false; FX.trailPts.length = 0; if (FX.rain) FX.rain.pts.visible = false;
+  FX.bullet.visible = false; FX.trail.visible = false; FX.preview.visible = false; FX.trailPts.length = 0;
 }
 
 // --- 具体的な演出 ---
@@ -183,39 +183,42 @@ function fxCapPop(pos) {                                     // 栓が飛ぶ
   for (let i = 0; i < 6; i++) fxSpawn({ x: pos.x, y: pos.y + 1.2, z: pos.z, color: 0xe8f0ff, op: 0.7, life: 0.7, s0: 0.1, s1: 0.5, vx: rr(1.5), vy: 1 + Math.random(), vz: rr(1.5), spin: 0 });
   fxSpawn({ x: pos.x, y: pos.y + 1.3, z: pos.z, color: 0xb8a040, life: 1.4, s0: 0.1, s1: 0.1, vx: rr(3), vy: 5 + Math.random() * 2, vz: rr(3), grav: -9.8, spin: 20 });
 }
-// 雨：スプリンクラーの下に降る水。points の位置を毎フレーム動かす
-function initRain(scene) {
-  const N = 520, g = new THREE.BufferGeometry(), pos = new Float32Array(N * 3);
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9fc4ee, size: 2.6, sizeAttenuation: false, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
-  pts.frustumCulled = false; pts.visible = false; scene.add(pts);
-  FX.rain = { pts, N, pos, r: new Float32Array(N), a: new Float32Array(N), on: false };
-  for (let i = 0; i < N; i++) { FX.rain.r[i] = Math.sqrt(Math.random()) * 3.6; FX.rain.a[i] = Math.random() * 6.28; pos[i * 3 + 1] = Math.random() * 4; }
+// ---- 「ここを見て」の目印：物の足元の床に置く細い輪（小さく・薄く・暖色。体にはかぶせない） ----
+function initHighlight(scene) {
+  FX.hl = [new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }))];
+  FX.hl[0].rotation.x = -Math.PI / 2; FX.hl[0].visible = false; FX.hl[0].renderOrder = 3; scene.add(FX.hl[0]);
 }
-function fxRainUpdate(dt, on, c) {                           // c: スプリンクラーの位置
-  const R = FX.rain; R.pts.visible = on;
-  if (!on) return;
-  for (let i = 0; i < R.N; i++) {
-    let y = R.pos[i * 3 + 1] - 7.5 * dt;
-    if (y < 0) { y = c.y - Math.random() * 0.3; R.r[i] = Math.sqrt(Math.random()) * 3.6; R.a[i] = Math.random() * 6.28; if (Math.random() < 0.35) fxSpawn({ x: c.x + Math.cos(R.a[i]) * R.r[i], y: 0.03, z: c.z + Math.sin(R.a[i]) * R.r[i], color: 0xcfe6ff, op: 0.6, life: 0.25, s0: 0.03, s1: 0.16, flat: true, spin: 0 }); }
-    R.pos[i * 3] = c.x + Math.cos(R.a[i]) * R.r[i]; R.pos[i * 3 + 1] = y; R.pos[i * 3 + 2] = c.z + Math.sin(R.a[i]) * R.r[i];
+
+// ---- ① 大爆発：爆発の火球・煙・火花・破片に、広がる衝撃波の球と、地面を走る輪を足す ----
+function fxBigExplosion(pos) {
+  fxExplosion(pos);
+  for (let i = 0; i < 12; i++) fxSpawn({ x: pos.x + rr(0.6), y: pos.y + Math.random() * 1.5, z: pos.z + rr(0.6), color: i % 2 ? 0xff6a10 : 0xffd070, add: true, op: 0.9,
+    life: 0.7 + Math.random() * 0.5, s0: 0.4, s1: 1.5 + Math.random() * 0.8, vx: rr(4), vy: 1 + Math.random() * 4, vz: rr(4), spin: 0 });
+  for (let i = 0; i < 24; i++) fxSpawn({ x: pos.x, y: pos.y + 0.3, z: pos.z, color: 0x2e2c2a, life: 2.2, s0: 0.1 + Math.random() * 0.14, s1: 0.1,
+    vx: rr(11), vy: 3 + Math.random() * 9, vz: rr(11), grav: -9.8, spin: 16 });
+  FX.shake = Math.min(2.2, FX.shake + 1.6);
+  FX.flashLight.intensity = 16;
+  if (!FX.shock) {
+    FX.shock = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffd8a0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }));
+    FX.shock.visible = false; FX.scene.add(FX.shock);
   }
-  R.pts.geometry.attributes.position.needsUpdate = true;
+  FX.shock.userData = { t: 0, pos: { x: pos.x, y: pos.y + 0.4, z: pos.z } }; FX.shock.visible = true;
 }
+function fxShockUpdate(dt) {                                   // 衝撃波の球（0.6 秒で半径 9m まで広がって消える）
+  const s = FX.shock; if (!s || !s.visible) return;
+  s.userData.t += dt; const k = s.userData.t / 0.6;
+  if (k >= 1) { s.visible = false; return; }
+  s.position.set(s.userData.pos.x, s.userData.pos.y, s.userData.pos.z); s.scale.setScalar(0.5 + k * 9);
+  s.material.opacity = 0.3 * (1 - k) * (1 - k);
+}
+
 function fxJet(pos, back) {                                  // ロケットの噴射：細く・薄く（機体を隠さない）
   for (let i = 0; i < 2; i++) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: i % 2 ? 0xdff2ff : 0xffe2a0, add: true, op: 0.55, life: 0.22 + Math.random() * 0.15, s0: 0.08, s1: 0.025,
     vx: back.x * 4 + rr(0.5), vy: back.y * 4 + rr(0.5), vz: back.z * 4 + rr(0.5), spin: 0 });
   if (Math.random() < 0.35) fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xcfd6dc, op: 0.18, life: 0.6, s0: 0.06, s1: 0.28, vx: back.x * 1.2 + rr(0.3), vy: back.y * 1.2 + 0.2, vz: back.z * 1.2 + rr(0.3), spin: 0 });
 }
-function fxBounce(pos) {                                     // 壁・天井・床にぶつかった瞬間：明るい火花と砂ぼこり
+function fxBounce(pos) {                                     // 壁・天井・床・顔にぶつかった瞬間：明るい火花と砂ぼこり
   fxSparks(pos, 26, 0xfff0c0, 7);
   for (let i = 0; i < 8; i++) fxSpawn({ x: pos.x + rr(0.15), y: pos.y + rr(0.15), z: pos.z + rr(0.15), color: 0xb8aea0, op: 0.45, life: 0.7, s0: 0.1, s1: 0.55, vx: rr(1.4), vy: rr(1.0) + 0.3, vz: rr(1.4), spin: 0 });
   fxSpawn({ x: pos.x, y: pos.y, z: pos.z, color: 0xffffff, add: true, op: 0.9, life: 0.12, s0: 0.5, s1: 0.9, spin: 0 });
-}
-
-
-// ---- 「ここを見て」の目印：物の足元の床に置く細い輪（小さく・薄く・暖色。体にはかぶせない） ----
-function initHighlight(scene) {
-  FX.hl = [new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }))];
-  FX.hl[0].rotation.x = -Math.PI / 2; FX.hl[0].visible = false; FX.hl[0].renderOrder = 3; scene.add(FX.hl[0]);
 }

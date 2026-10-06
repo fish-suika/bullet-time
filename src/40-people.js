@@ -71,20 +71,15 @@ function buildPeople(scene) {
   const cg = new THREE.ConeGeometry(R, L, 28, 1, true); cg.translate(0, -L / 2, 0); cg.rotateX(Math.PI / 2);
   const cone = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: 0xfff0cc, transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   cone.rotation.x = -0.1; cone.renderOrder = 5; rig.add(cone);
-  const lensT = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.18, 10), stdMat(0x2a2c30, 0.4, 0.7)); lensT.rotation.x = Math.PI / 2; lensT.visible = false; rig.add(lensT);   // 手を離れたあとの筒
-  const lensL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 10), new THREE.MeshBasicMaterial({ color: 0xfff6dc })); lensL.rotation.x = Math.PI / 2; lensL.position.z = -0.1; lensL.visible = false; rig.add(lensL);
-  scene.add(rig); PEOPLE.rig = { g: rig, spot, cone, tube: lensT, lens: lensL };
+  scene.add(rig); PEOPLE.rig = { g: rig, spot, cone };
 }
 
 function setArms(P, a, b) { if (P.limbs.armL) { P.limbs.armL.rotation.x = a; P.limbs.armR.rotation.x = b; } }
 
 // 剛体 → 見た目、状態 → ポーズ
-const __v3 = new THREE.Vector3();
 function peopleSync(S, time) {
-  const fe = S.ents.flash, rg = PEOPLE.rig, thrown = S.flashT.thrown;
+  const fe = S.ents.flash, rg = PEOPLE.rig;
   rg.g.position.set(fe.body.position.x, fe.body.position.y, fe.body.position.z); rg.g.quaternion.set(fe.body.quaternion.x, fe.body.quaternion.y, fe.body.quaternion.z, fe.body.quaternion.w);
-  rg.tube.visible = rg.lens.visible = thrown;                 // 手を離れたら筒が見える
-  for (const m of PEOPLE.B.flashProps) m.visible = !thrown;
   for (const id of ['hero', 'A', 'B']) {
     const P = PEOPLE[id], e = S.ents[id], p = e.body.position, q = e.body.quaternion;
     P.outer.position.set(p.x, p.y, p.z); P.outer.quaternion.set(q.x, q.y, q.z, q.w);
@@ -99,18 +94,12 @@ function peopleSync(S, time) {
     const flail = () => { la = 2.4 * Math.sin(time * 7 + (id === 'A' ? 0 : 2)); ra = 2.2 * Math.cos(time * 6) + 1.5; legs = 1.0; };
     if (id === 'A') {
       if (st === 'aim' || st === 'fired' || st === 'turn' || st === 'standoff') { la = ra = Math.PI / 2; }
-      else if (st === 'dazzled' || st === 'frozen') { la = ra = 2.7; headTilt = -0.4; }                // まぶしくて手で顔をかばう
       else if (st === 'dodge') { crouch = 0.55; la = ra = 2.4; }
-      else if (st === 'rising') { la = ra = 2.0 + Math.sin(time * 14) * 0.5; legs = Math.sin(time * 16) * 0.6; }
       else flail();
     } else {
       if (st === 'idle') { la = 1.3; ra = 0.25; P.head.rotation.y = Math.sin(time * 0.5) * 0.15; }
-      else if (st === 'seek') { const sw = held && S.t > en.reactAt ? Math.sin(time * 16) : 0; legs = sw * 0.9; la = 1.3; ra = 0.9 + sw * 0.4; P.head.rotation.y = 0; }
-      else if (st === 'stoop') { crouch = 0.62; la = 0.9; ra = 0.9; }
-      else if (st === 'blind') { crouch = 0.8; la = 2.6 + Math.sin(time * 18) * 0.4; ra = Math.PI / 2; }
-      else if (st === 'lit' || st === 'standoff' || st === 'fired' || st === 'blindDone') { la = ra = Math.PI / 2; }
+      else if (st === 'lit' || st === 'standoff' || st === 'fired') { la = ra = Math.PI / 2; }
       else if (st === 'dodge') { crouch = 0.55; la = ra = 2.4; }
-      else if (st === 'rising') { la = ra = 2.0 + Math.sin(time * 14) * 0.5; legs = Math.sin(time * 16) * 0.6; }
       else flail();
     }
     setArms(P, la, ra);
@@ -118,10 +107,4 @@ function peopleSync(S, time) {
     P.g.scale.y = crouch; P.g.position.y = -STAGE1.ents[id].half[1];
     if (id === 'A') P.head.rotation.x = headTilt;
   }
-  // ペンキ缶：B の頭にかぶさったら、B の頭に付けて見せる
-  const pv = ROOM.views.paint.obj, pe = S.ents.paint;
-  if (pe.captured) {
-    PEOPLE.B.head.getWorldPosition(__v3);
-    pv.visible = true; pv.position.set(__v3.x, __v3.y + 0.1, __v3.z); pv.quaternion.copy(PEOPLE.B.outer.quaternion); pv.scale.set(1.7, 1.7, 1.7);
-  } else pv.scale.set(1, 1, 1);
 }

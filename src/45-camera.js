@@ -18,7 +18,7 @@ function camApply(shake) {
   if (Math.abs(c.fov - v) > 0.01) { c.fov = v; c.updateProjectionMatrix(); }
 }
 function camShot(w) { return { x: w.x, y: w.y, z: w.z, lx: w.lx, ly: w.ly, lz: w.lz, fov: w.fov }; }
-function camWide(id) { return camShot(CFG.camera.wideBy[id] || CFG.camera.wide); }
+function camWide() { return camShot(CFG.camera.wide); }
 function camFreeze() { return camShot(CFG.camera.freeze); }
 // 弾の斜め後ろから追う。near（0〜1）が大きいほど近く・狭く
 function camFollow(pos, dir, near) {

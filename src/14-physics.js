@@ -6,9 +6,8 @@ function makeWorldBodies(S) {
   w.solver.iterations = P.iterations;
   w.defaultContactMaterial.friction = P.friction;
   w.defaultContactMaterial.restitution = P.restitution;
-  const matRocket = new CANNON.Material('rocket'), matGround = new CANNON.Material('ground'), matSlick = new CANNON.Material('slick');
+  const matRocket = new CANNON.Material('rocket'), matGround = new CANNON.Material('ground');
   w.addContactMaterial(new CANNON.ContactMaterial(matGround, matRocket, { friction: 0, restitution: CFG.rocket.restitution }));
-  w.addContactMaterial(new CANNON.ContactMaterial(matGround, matSlick, { friction: 0, restitution: 0.1 }));   // 噴射で滑る消火器・床を滑る銃（cannon の箱は摩擦が 0.02 でもびくともしないほど強く効くので、摩擦なしにして減速は damping で）
   S.world = w;
 
   // 床・天井・壁（吹き飛んだものが部屋の外へ出ないように）
@@ -27,8 +26,8 @@ function makeWorldBodies(S) {
   S.ents = {};
   for (const id in st.ents) {
     const d = st.ents[id];
-    const e = { id, def: d, body: null, held: false, hold: { x: d.pos[0], y: d.pos[1], z: d.pos[2] }, yaw: d.yaw || 0, tilt: 0, pv: new CANNON.Vec3(), broken: false };
-    const b = new CANNON.Body({ mass: d.mass, material: id === 'cyl' ? matRocket : (id === 'ext' || id === 'gun') ? matSlick : null });
+    const e = { id, def: d, body: null, held: false, hold: { x: d.pos[0], y: d.pos[1], z: d.pos[2] }, yaw: d.yaw || 0, pv: new CANNON.Vec3(), broken: false };
+    const b = new CANNON.Body({ mass: d.mass, material: id === 'cyl' ? matRocket : null });
     b.addShape(d.radius ? new CANNON.Sphere(d.radius) : new CANNON.Box(new CANNON.Vec3(d.half[0], d.half[1], d.half[2])));
     b.position.set(d.pos[0], d.pos[1], d.pos[2]);
     b.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), e.yaw);
@@ -36,9 +35,7 @@ function makeWorldBodies(S) {
     if (d.kind === 'person' || d.kind === 'lamp' || d.kind === 'shelf' || d.held) e.held = true;   // 立っている人・吊られたもの・棚は、手を離されるまで動かない
     if (d.kind === 'person') { b.linearDamping = 0.05; b.angularDamping = 0.15; }
     if (id === 'drum') { b.linearDamping = 0.25; b.angularDamping = 0.1; }
-    if (id === 'ext') { b.linearDamping = 0.1; b.angularDamping = 0.5; }
-    if (id === 'gun') { b.linearDamping = 0.8; b.angularDamping = 0.5; }
-    if (id === 'paint') { b.collisionFilterMask = 0; }                  // 缶は棚にも体にも当たらず、落ち先だけを重力で飛ぶ
+    if (id === 'ext') { b.linearDamping = 0.05; b.angularDamping = 0.5; }
     b.addEventListener('collide', ev => { S.collisions.push({ ent: e, other: ev.body.tag, speed: Math.hypot(e.pv.x, e.pv.y, e.pv.z), ov: ev.body.velocity }); });
     e.body = b; w.addBody(b);
     S.ents[id] = e;
@@ -54,7 +51,6 @@ function holdEnts(S) {
     b.position.set(e.hold.x, e.hold.y, e.hold.z);
     b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0);
     b.quaternion.setFromAxisAngle(Y, e.yaw);
-    if (e.tilt) { const t = new CANNON.Quaternion(); t.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), e.tilt); b.quaternion = b.quaternion.mult(t); }   // 棚の揺れ
   }
 }
 
@@ -93,7 +89,7 @@ function rayEnt(from, dir, e) {
 // from から dir（単位ベクトル）へ撃つ。最初に当たったものを返す
 function castRay(S, from, dir, exclude) {
   let best = { t: 1e9, ent: null, surface: null };
-  for (const id of ['hero', 'A', 'B', 'shelf', 'cyl', 'lamp', 'sprk', 'drum', 'ext']) {
+  for (const id of ['hero', 'A', 'B', 'shelf', 'cyl', 'lamp', 'drum', 'ext']) {
     if (id === exclude) continue;
     const e = S.ents[id]; if (!e || e.broken) continue;
     const t = rayEnt(from, dir, e);
