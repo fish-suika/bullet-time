@@ -1000,7 +1000,7 @@ function initFx(scene) {
   // 弾：真ちゅうの弾体と光（3 倍の大きさ。小さすぎて見えないので）
   const b = new THREE.Group();
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.16, 12), new THREE.MeshBasicMaterial({ color: 0xffd27a })); body.rotation.x = Math.PI / 2; b.add(body);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.1, 12), new THREE.MeshBasicMaterial({ color: 0xfff0c0 })); tip.rotation.x = -Math.PI / 2; tip.position.z = -0.13; b.add(tip);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.1, 12), new THREE.MeshBasicMaterial({ color: 0xfff0c0 })); tip.rotation.x = Math.PI / 2; tip.position.z = 0.13; b.add(tip);   // lookAt は +Z を進む向きに向けるので、弾頭は +Z 側
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xaad4ff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
   glow.scale.set(0.16, 0.16, 1); b.add(glow); FX.glow = glow;
   b.scale.setScalar(2.4); b.visible = false; scene.add(b); FX.bullet = b;
